@@ -3,9 +3,24 @@
 ---
 
 ## Índice
+
 - [1. Introducción](#1-introducción)
 - [2. Stakeholders y sus preocupaciones](#2-stakeholders-y-sus-preocupaciones)
 - [3. Reglas de negocio](#3-reglas-de-negocio)
+- [4. Entidades del sistema](#4-entidades-del-sistema)
+- [5. Casos de uso de alto nivel](#5-casos-de-uso-de-alto-nivel)
+- [6. Requisitos funcionales](#6-requisitos-funcionales)
+- [7. Requisitos no funcionales y arquitectónicos](#7-requisitos-no-funcionales-y-arquitectónicos)
+- [8. Diagrama de contexto](#8-diagrama-de-contexto)
+- [9. Definición de tecnologías](#9-definición-de-tecnologías)
+- [10. Comunicación asíncrona](#10-comunicación-asíncrona)
+- [11. Catálogo de eventos](#11-catálogo-de-eventos)
+- [12. Service Level Indicators](#12-service-level-indicators)
+- [13. Service Level Objective](#13-service-level-objective)
+- [14. Service Level Agreement](#14-service-level-agreement)
+- [15. Diagrama de secuencia](#15-diagrama-de-secuencia)
+- [16. Diagrama de Contenedores](#16-diagrama-de-contenedores)
+- [17. Diagrama de Arquitectura](#17-diagrama-de-arquitectura)
 
 ---
 
