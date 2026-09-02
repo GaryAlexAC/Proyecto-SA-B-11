@@ -1,6 +1,7 @@
-import { Body, Controller, Get, Inject, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Inject, Param, Post } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { v4 as uuidv4 } from 'uuid';
+import { rpcToHttp } from '../rpc-to-http.js';
 
 @Controller('api/transactions')
 export class TransactionController {
@@ -9,18 +10,18 @@ export class TransactionController {
   ) {}
 
   @Post()
-  createTransaction(@Body() data: any) {
-    const payload = { ...data, correlationId: uuidv4() };
-    return this.client.send('create_transaction', payload);
+  createTransaction(@Body() data: any, @Headers('authorization') authorization?: string, @Headers('idempotency-key') idempotencyKey?: string) {
+    const payload = { ...data, authorization, idempotencyKey, correlationId: uuidv4() };
+    return rpcToHttp(this.client.send('create_transaction', payload));
   }
 
   @Get(':id')
-  getTransactionStatus(@Param('id') id: string) {
-    return this.client.send('get_transaction', { id, correlationId: uuidv4() });
+  getTransactionStatus(@Param('id') id: string, @Headers('authorization') authorization?: string) {
+    return rpcToHttp(this.client.send('get_transaction', { id, authorization, correlationId: uuidv4() }));
   }
 
   @Get('customer/:customerId')
-  getTransactionsByCustomer(@Param('customerId') customerId: string) {
-    return this.client.send('get_transactions_by_customer', { customerId, correlationId: uuidv4() });
+  getTransactionsByCustomer(@Param('customerId') customerId: string, @Headers('authorization') authorization?: string) {
+    return rpcToHttp(this.client.send('get_transactions_by_customer', { customerId, authorization, correlationId: uuidv4() }));
   }
 }

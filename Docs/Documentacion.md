@@ -332,7 +332,7 @@ Cada evento contiene la información necesaria para identificar la operación qu
 ### 6.1 Customer
 | ID        | Requisito                                                                                                            |
 | --------- | -------------------------------------------------------------------------------------------------------------------- |
-| RF-CUS-01 | Registrar clientes con nombre completo, documento, correo, fecha de nacimiento, dirección y fotografía del documento |
+| RF-CUS-01 | Registrar clientes con nombre completo, documento, correo, fecha de nacimiento, dirección y fotografía del documento enviada por `multipart/form-data`; Customer Service la conserva como binario en su propia base de datos |
 | RF-CUS-02 | Validar que la fecha de nacimiento sea coherente y no se encuentre en el futuro                                      |
 | RF-CUS-03 | Evitar documentos y correos duplicados                                                                               |
 | RF-CUS-04 | Generar automáticamente un username único a partir del nombre                                                        |
@@ -437,7 +437,7 @@ La selección tecnológica de Bank USAC se realiza considerando las característ
 | ------------------------ | ------------------------ |
 | Lenguaje backend         | TypeScript               |
 | Runtime backend          | Node.js                  |
-| Framework backend        | Express                  |
+| Framework backend        | NestJS                   |
 | Frontend                 | React + TypeScript       |
 | API Gateway              | Node.js + Express        |
 | Broker de mensajería     | RabbitMQ                 |
@@ -652,10 +652,8 @@ Se conservarán para:
 | -------------------------- | ------ | --------- | ----------------------------- |
 | `CustomerRegistered`       | Evento | Customer  | Notification & Audit          |
 | `CustomerActivated`        | Evento | Customer  | Notification & Audit          |
-| `CustomerUpdated`          | Evento | Customer  | Notification & Audit          |
-| `CustomerBlocked`          | Evento | Customer  | Account, Notification & Audit |
+| `CustomerBlocked`          | Evento | Customer  | Notification & Audit          |
 | `ActivationEmailRequested` | Evento | Customer  | Notification & Audit          |
-| `AuthenticationFailed`     | Evento | Customer  | Notification & Audit          |
 
 ### 11.2 Acount service
 | Mensaje                     | Tipo    | Productor   | Consumidor                         |

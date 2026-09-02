@@ -23,13 +23,27 @@
 
 ## Description
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+API Gateway de Bank USAC. Es el único punto de entrada externo y conecta las operaciones de Customer Service mediante RabbitMQ. Las dos operaciones que incluyen la foto binaria usan `multipart/form-data` y no introducen la imagen en RabbitMQ.
+
+### Rutas de Customer Service
+
+- `POST /api/customers`: registro multipart con el archivo `identityPhoto`.
+- `POST /api/cashiers`: creación de un cajero activo por un administrador.
+- `GET /api/customers`: listado para administradores y cajeros.
+- `GET /api/customers/:id`: consulta por RabbitMQ.
+- `PATCH /api/customers/:id`: actualización por RabbitMQ.
+- `POST /api/customers/:id/block`: bloqueo por RabbitMQ.
+- `PUT /api/customers/:id/identity-document`: reemplazo multipart de la foto.
+- `POST /api/auth/login`: autenticación por RabbitMQ.
+- `GET /api/auth/activate?token=...`: activación desde el enlace enviado por Notification Service.
 
 ## Project setup
 
 ```bash
 $ npm install
 ```
+
+Las variables locales se documentan en `.env.example`. Customer Service recibe comandos JSON por `customer_queue`; únicamente las dos operaciones multipart se reenvían por HTTP interno mediante `CUSTOMER_SERVICE_HTTP_URL`.
 
 ## Compile and run the project
 

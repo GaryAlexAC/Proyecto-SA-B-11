@@ -4,3 +4,5 @@ build/
 .env
 .next/
 *.log
+*.tsbuildinfo
+apps/customer-service/src/generated/

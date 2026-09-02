@@ -1,6 +1,7 @@
-import { Body, Controller, Get, Inject, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Inject, Param, Post } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { v4 as uuidv4 } from 'uuid';
+import { rpcToHttp } from '../rpc-to-http.js';
 
 @Controller('api/payments')
 export class PaymentController {
@@ -9,13 +10,13 @@ export class PaymentController {
   ) {}
 
   @Post()
-  createPayment(@Body() data: any) {
-    const payload = { ...data, correlationId: uuidv4() };
-    return this.client.send('create_payment', payload);
+  createPayment(@Body() data: any, @Headers('authorization') authorization?: string, @Headers('idempotency-key') idempotencyKey?: string) {
+    const payload = { ...data, authorization, idempotencyKey, correlationId: uuidv4() };
+    return rpcToHttp(this.client.send('create_payment', payload));
   }
 
   @Get(':id')
-  getPaymentStatus(@Param('id') id: string) {
-    return this.client.send('get_payment', { id, correlationId: uuidv4() });
+  getPaymentStatus(@Param('id') id: string, @Headers('authorization') authorization?: string) {
+    return rpcToHttp(this.client.send('get_payment', { id, authorization, correlationId: uuidv4() }));
   }
 }

@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum CustomerRole {
+  ADMIN
+  CASHIER
+  CLIENT
+}
+
+enum CustomerStatus {
+  INACTIVE
+  ACTIVE
+  BLOCKED
+}
+
+model Customer {
+  id                       String         @id @default(uuid())
+  fullName                 String
+  document                 String         @unique
+  email                    String         @unique
+  birthDate                DateTime       @db.Date
+  address                  String
+  identityPhotoData        Bytes?
+  identityPhotoMimeType    String?
+  identityPhotoChecksum    String?
+  username                 String         @unique
+  passwordHash             String
+  role                     CustomerRole   @default(CLIENT)
+  status                   CustomerStatus @default(INACTIVE)
+  activationTokenHash      String?        @unique
+  activationTokenExpiresAt DateTime?
+  activatedAt              DateTime?
+  version                  Int            @default(1)
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
+}
+
+model OutboxEvent {
+  id            String   @id @default(uuid())
+  eventType     String
+  correlationId String
+  payload       Json
+  occurredAt    DateTime @default(now())
+  publishedAt   DateTime?
+  failedAt      DateTime?
+  attempts      Int      @default(0)
+  nextAttemptAt DateTime @default(now())
+  @@index([publishedAt, failedAt, nextAttemptAt])
+}
+
+model IdempotencyRecord {
+  key        String   @id
+  operation  String
+  customerId String?
+  createdAt  DateTime @default(now())
+}
