@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+    spec:
+      containers:
+      - name: notification-service
+        image: notification-service:latest
+        imagePullPolicy: Never
+        env:
+        - name: DATABASE_URL
+          value: "postgresql://admin:password123@host.minikube.internal:5432/db_notification"
+        - name: RABBITMQ_URL
+          value: "amqp://rabbitmq:5672"
+        livenessProbe:
+          exec:
+            command: ["node", "-e", "process.exit(0)"]
+          initialDelaySeconds: 15
+          periodSeconds: 30
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command: ["node", "-e", "process.exit(0)"]
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "250m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3000
+    targetPort: 3000
+  selector:
+    app: notification-service

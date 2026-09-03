@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+    spec:
+      containers:
+      - name: payment-service
+        image: payment-service:latest
+        imagePullPolicy: Never
+        env:
+        - name: DATABASE_URL
+          value: "postgresql://admin:password123@host.minikube.internal:5432/db_payment"
+        - name: RABBITMQ_URL
+          value: "amqp://rabbitmq:5672"
+        livenessProbe:
+          exec:
+            command: ["node", "-e", "process.exit(0)"]
+          initialDelaySeconds: 15
+          periodSeconds: 30
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command: ["node", "-e", "process.exit(0)"]
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "250m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-service
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3000
+    targetPort: 3000
+  selector:
+    app: payment-service

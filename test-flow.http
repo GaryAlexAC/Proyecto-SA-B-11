@@ -1,0 +1,76 @@
+### =========================================================================
+### PRUEBAS DE INTEGRACIÓN: BANK USAC (SAGA DE TRANSFERENCIAS)
+### Puedes ejecutar esto usando la extensión "REST Client" en VSCode
+### =========================================================================
+
+@gateway_url = http://localhost:3000/api
+
+### 1. Crear Cuenta Origen (Andrés)
+# @name createSource
+POST {{gateway_url}}/accounts
+Content-Type: application/json
+
+{
+  "customerId": "cust-andres-01",
+  "type": "MONETARIA",
+  "balance": 5000.00
+}
+
+###
+
+### 2. Crear Cuenta Destino (Universidad)
+# @name createTarget
+POST {{gateway_url}}/accounts
+Content-Type: application/json
+
+{
+  "customerId": "cust-usac-02",
+  "type": "MONETARIA",
+  "balance": 0.00
+}
+
+###
+
+### 3. Extraer IDs (Copia los IDs de las respuestas de arriba y pégalos aquí)
+@sourceId = {{createSource.response.body.id}}
+@targetId = {{createTarget.response.body.id}}
+
+### 4. INICIAR LA SAGA: Realizar Transferencia (Q. 1500 de Andrés a la USAC)
+# @name transfer
+POST {{gateway_url}}/transactions
+Content-Type: application/json
+
+{
+  "sourceAccount": "{{sourceId}}",
+  "targetAccount": "{{targetId}}",
+  "amount": 1500.00
+}
+
+###
+
+### 5. Verificar Saldo Origen (Debería ser 3500.00)
+GET {{gateway_url}}/accounts/{{sourceId}}/balance
+
+###
+
+### 6. Verificar Saldo Destino (Debería ser 1500.00)
+GET {{gateway_url}}/accounts/{{targetId}}/balance
+
+###
+
+### 7. Verificar Historial de Transacciones de Andrés
+GET {{gateway_url}}/transactions/customer/cust-andres-01
+
+### =========================================================================
+### PRUEBA DE RESILIENCIA (Fallo en la transacción por fondos insuficientes)
+### =========================================================================
+
+### 8. Intentar transferir Q. 10000 (Saga debe fallar y hacer rollback)
+POST {{gateway_url}}/transactions
+Content-Type: application/json
+
+{
+  "sourceAccount": "{{sourceId}}",
+  "targetAccount": "{{targetId}}",
+  "amount": 10000.00
+}
