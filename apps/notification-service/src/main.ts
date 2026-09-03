@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
+import { AppModule } from './app.module.js';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 
 async function bootstrap() {
@@ -8,7 +8,8 @@ async function bootstrap() {
     {
       transport: Transport.RMQ,
       options: {
-        urls: ['amqp://localhost:5672'],
+        // FIX P6: use env variable instead of hardcoded localhost
+        urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
         queue: 'notification_queue',
         queueOptions: {
           durable: true,

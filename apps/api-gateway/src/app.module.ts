@@ -1,9 +1,14 @@
 import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
-import { CustomerController } from './controllers/customer.controller';
-import { AccountController } from './controllers/account.controller';
-import { TransactionController } from './controllers/transaction.controller';
-import { PaymentController } from './controllers/payment.controller';
+import { CustomerController } from './controllers/customer.controller.js';
+import { AccountController } from './controllers/account.controller.js';
+import { TransactionController } from './controllers/transaction.controller.js';
+import { PaymentController } from './controllers/payment.controller.js';
+
+// FIX P1: All RabbitMQ URLs now read from environment variables instead of being hardcoded.
+// In Kubernetes, RABBITMQ_URL = "amqp://rabbitmq:5672"
+// Locally (dev), falls back to "amqp://localhost:5672"
+const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://localhost:5672';
 
 @Module({
   imports: [
@@ -12,7 +17,7 @@ import { PaymentController } from './controllers/payment.controller';
         name: 'CUSTOMER_SERVICE',
         transport: Transport.RMQ,
         options: {
-          urls: ['amqp://localhost:5672'],
+          urls: [RABBITMQ_URL],
           queue: 'customer_queue',
           queueOptions: { durable: true },
         },
@@ -21,7 +26,7 @@ import { PaymentController } from './controllers/payment.controller';
         name: 'ACCOUNT_SERVICE',
         transport: Transport.RMQ,
         options: {
-          urls: ['amqp://localhost:5672'],
+          urls: [RABBITMQ_URL],
           queue: 'account_queue',
           queueOptions: { durable: true },
         },
@@ -30,7 +35,7 @@ import { PaymentController } from './controllers/payment.controller';
         name: 'TRANSACTION_SERVICE',
         transport: Transport.RMQ,
         options: {
-          urls: ['amqp://localhost:5672'],
+          urls: [RABBITMQ_URL],
           queue: 'transaction_queue',
           queueOptions: { durable: true },
         },
@@ -39,7 +44,7 @@ import { PaymentController } from './controllers/payment.controller';
         name: 'PAYMENT_SERVICE',
         transport: Transport.RMQ,
         options: {
-          urls: ['amqp://localhost:5672'],
+          urls: [RABBITMQ_URL],
           queue: 'payment_queue',
           queueOptions: { durable: true },
         },

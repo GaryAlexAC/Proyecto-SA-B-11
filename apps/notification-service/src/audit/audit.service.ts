@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
 export class AuditService {
@@ -13,7 +13,7 @@ export class AuditService {
       const eventId = eventData.eventId || crypto.randomUUID();
       const eventType = eventData.eventType || 'UnknownEvent';
       const correlationId = eventData.correlationId || 'NoCorrelation';
-      
+
       const record = await this.prisma.auditLog.upsert({
         where: { eventId },
         update: {}, // Si ya existe (idempotencia), no actualizamos nada
@@ -25,14 +25,21 @@ export class AuditService {
           causationId: eventData.causationId,
           producer,
           payload: eventData.payload || {},
-          occurredAt: eventData.occurredAt ? new Date(eventData.occurredAt) : new Date(),
+          occurredAt: eventData.occurredAt
+            ? new Date(eventData.occurredAt)
+            : new Date(),
         },
       });
 
-      this.logger.log(`[Auditoría] Evento guardado: ${eventType} (ID: ${eventId})`);
+      this.logger.log(
+        `[Auditoría] Evento guardado: ${eventType} (ID: ${eventId})`,
+      );
       return record;
     } catch (error) {
-      this.logger.error(`Error al guardar auditoría para evento de ${producer}`, error);
+      this.logger.error(
+        `Error al guardar auditoría para evento de ${producer}`,
+        error,
+      );
     }
   }
 
