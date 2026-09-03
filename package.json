@@ -4,6 +4,7 @@
   "private": true,
   "workspaces": [
     "apps/*",
+    "frontend",
     "packages/*"
   ],
   "scripts": {
@@ -14,6 +15,7 @@
   },
   "devDependencies": {
     "prettier": "^3.0.0",
+    "prisma": "^5.22.0",
     "turbo": "latest",
     "typescript": "^5.0.0"
   },

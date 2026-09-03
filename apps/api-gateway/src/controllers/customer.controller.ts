@@ -4,6 +4,7 @@ import {
   Get,
   Headers,
   Inject,
+  Patch,
   Param,
   Post,
   Put,
@@ -78,7 +79,7 @@ export class CustomerController {
     );
   }
 
-  @Put(':id')
+  @Patch(':id')
   updateCustomer(
     @Param('id') id: string,
     @Body() customer: Record<string, unknown>,

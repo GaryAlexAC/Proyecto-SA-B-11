@@ -1,9 +1,12 @@
-FROM node:20-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm install
+FROM node:22-alpine
+
+RUN apk add --no-cache openssl
+WORKDIR /workspace
 COPY . .
-RUN npx prisma generate
-RUN npm run build
+RUN npm ci --workspace=apps/customer-service --include-workspace-root
+RUN npx prisma generate --schema=apps/customer-service/prisma/schema.prisma
+RUN npm run build --workspace=apps/customer-service
+
+WORKDIR /workspace/apps/customer-service
 EXPOSE 3001
-CMD ["npm", "run", "start:prod"]
+CMD ["sh", "-c", "npm run prisma:deploy && npm run prisma:seed && npm run start:prod"]

@@ -2,6 +2,8 @@ import { Injectable, Logger, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { TransactionStatus } from '@prisma/client-transaction';
 import { ClientProxy } from '@nestjs/microservices';
+import { firstValueFrom } from 'rxjs';
+import { timeout } from 'rxjs/operators';
 
 @Injectable()
 export class TransactionsService {
@@ -59,10 +61,29 @@ export class TransactionsService {
     return this.prisma.transaction.findUnique({ where: { id } });
   }
 
-  async getTransactionsByCustomer(customerId: string) {
+  async getTransactionsByCustomer(
+    customerId: string,
+    authorization: string | undefined,
+    correlationId: string,
+  ) {
+    const accounts = await firstValueFrom(
+      this.accountClient
+        .send<Array<{ id: string }>>('get_accounts_by_customer', {
+          customerId,
+          authorization,
+          correlationId,
+        })
+        .pipe(timeout(8_000)),
+    );
+    const accountIds = accounts.map((account) => account.id);
+    if (!accountIds.length) return [];
+
     return this.prisma.transaction.findMany({
       where: {
-        OR: [{ sourceAccountId: customerId }, { targetAccountId: customerId }],
+        OR: [
+          { sourceAccountId: { in: accountIds } },
+          { targetAccountId: { in: accountIds } },
+        ],
       },
       orderBy: { createdAt: 'desc' },
     });

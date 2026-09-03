@@ -2,18 +2,15 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Inject,
   Param,
   Post,
-  HttpException,
-  HttpStatus,
+  Req,
 } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { v4 as uuidv4 } from 'uuid';
-import { timeout, catchError } from 'rxjs/operators';
-import { throwError } from 'rxjs';
-
-const SERVICE_TIMEOUT_MS = 8000;
+import type { CorrelatedRequest } from '../request-context.js';
+import { rpcToHttp } from '../rpc-to-http.js';
 
 @Controller('api/accounts')
 export class AccountController {
@@ -22,55 +19,50 @@ export class AccountController {
   ) {}
 
   @Post()
-  createAccount(@Body() data: any) {
-    const payload = { ...data, correlationId: uuidv4() };
-    return this.client.send('create_account', payload).pipe(
-      timeout(SERVICE_TIMEOUT_MS),
-      catchError(() =>
-        throwError(
-          () =>
-            new HttpException(
-              'Account Service no disponible',
-              HttpStatus.SERVICE_UNAVAILABLE,
-            ),
-        ),
-      ),
+  createAccount(
+    @Body() data: Record<string, unknown>,
+    @Req() request: CorrelatedRequest,
+    @Headers('authorization') authorization?: string,
+  ) {
+    return rpcToHttp(
+      this.client.send('create_account', {
+        ...data,
+        authorization,
+        correlationId: request.correlationId,
+      }),
+      'Account Service',
     );
   }
 
   @Get(':id/balance')
-  getBalance(@Param('id') id: string) {
-    return this.client
-      .send('get_balance', { id, correlationId: uuidv4() })
-      .pipe(
-        timeout(SERVICE_TIMEOUT_MS),
-        catchError(() =>
-          throwError(
-            () =>
-              new HttpException(
-                'Account Service no disponible',
-                HttpStatus.SERVICE_UNAVAILABLE,
-              ),
-          ),
-        ),
-      );
+  getBalance(
+    @Param('id') id: string,
+    @Req() request: CorrelatedRequest,
+    @Headers('authorization') authorization?: string,
+  ) {
+    return rpcToHttp(
+      this.client.send('get_balance', {
+        id,
+        authorization,
+        correlationId: request.correlationId,
+      }),
+      'Account Service',
+    );
   }
 
   @Get('customer/:customerId')
-  getAccountsByCustomer(@Param('customerId') customerId: string) {
-    return this.client
-      .send('get_accounts_by_customer', { customerId, correlationId: uuidv4() })
-      .pipe(
-        timeout(SERVICE_TIMEOUT_MS),
-        catchError(() =>
-          throwError(
-            () =>
-              new HttpException(
-                'Account Service no disponible',
-                HttpStatus.SERVICE_UNAVAILABLE,
-              ),
-          ),
-        ),
-      );
+  getAccountsByCustomer(
+    @Param('customerId') customerId: string,
+    @Req() request: CorrelatedRequest,
+    @Headers('authorization') authorization?: string,
+  ) {
+    return rpcToHttp(
+      this.client.send('get_accounts_by_customer', {
+        customerId,
+        authorization,
+        correlationId: request.correlationId,
+      }),
+      'Account Service',
+    );
   }
 }

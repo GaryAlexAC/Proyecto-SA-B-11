@@ -22,9 +22,9 @@ export class AccountsService {
     return account;
   }
 
-  async getBalance(id: string) {
-    const account = await this.prisma.account.findUnique({
-      where: { id },
+  async getBalance(id: string, customerId?: string) {
+    const account = await this.prisma.account.findFirst({
+      where: { id, customerId },
       select: { balance: true },
     });
     return account
@@ -51,7 +51,9 @@ export class AccountsService {
         where: { eventId },
       });
       if (alreadyProcessed) {
-        this.logger.log(`Event ${eventId} already processed (idempotency check)`);
+        this.logger.log(
+          `Event ${eventId} already processed (idempotency check)`,
+        );
         return null;
       }
 
