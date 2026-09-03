@@ -28,12 +28,10 @@ export class TransactionsService {
       },
     });
 
-    // FIX BUG #1: emit to accountClient (account_queue), NOT notificationClient
-    // FIX BUG #2: flatten sourceAccountId/targetAccountId/amount to root level
-    //             so Account Service can destructure them directly from `data`
-    this.accountClient.emit('TransferRequested', {
+    // 1. Iniciar la Saga enviando el Comando ReserveFunds al Account Service
+    this.accountClient.emit('ReserveFunds', {
       eventId: crypto.randomUUID(),
-      eventType: 'TransferRequested',
+      eventType: 'ReserveFunds',
       correlationId,
       producer: 'transaction-service',
       sourceAccountId: data.sourceAccount,
@@ -62,9 +60,6 @@ export class TransactionsService {
   }
 
   async getTransactionsByCustomer(customerId: string) {
-    // FIX P5: queries transactions where either account ID contains the customerId segment.
-    // Transaction Service stores accountIds (UUIDs), not customerId directly.
-    // A production system would maintain a read-model via events from Account Service.
     return this.prisma.transaction.findMany({
       where: {
         OR: [{ sourceAccountId: customerId }, { targetAccountId: customerId }],
@@ -73,7 +68,11 @@ export class TransactionsService {
     });
   }
 
-  async completeTransaction(correlationId: string, eventId: string) {
+  async updateTransactionStatus(
+    correlationId: string,
+    status: TransactionStatus,
+    eventId: string,
+  ) {
     return await this.prisma.$transaction(async (tx) => {
       const alreadyProcessed = await tx.processedEvent.findUnique({
         where: { eventId },
@@ -82,7 +81,7 @@ export class TransactionsService {
 
       const updated = await tx.transaction.update({
         where: { correlationId },
-        data: { status: TransactionStatus.COMPLETED },
+        data: { status },
       });
 
       await tx.processedEvent.create({
@@ -91,6 +90,14 @@ export class TransactionsService {
 
       return updated;
     });
+  }
+
+  async completeTransaction(correlationId: string, eventId: string) {
+    return await this.updateTransactionStatus(
+      correlationId,
+      TransactionStatus.COMPLETED,
+      eventId,
+    );
   }
 
   async failTransaction(

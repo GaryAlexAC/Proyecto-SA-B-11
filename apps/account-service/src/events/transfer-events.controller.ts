@@ -12,14 +12,12 @@ export class TransferEventsController {
     private readonly transactionClient: ClientProxy,
     @Inject('NOTIFICATION_SERVICE')
     private readonly notificationClient: ClientProxy,
-    @Inject('ACCOUNT_SERVICE')
-    private readonly accountClient: ClientProxy,
   ) {}
 
-  @EventPattern('TransferRequested')
-  async handleTransferRequested(@Payload() data: any) {
+  @EventPattern('ReserveFunds')
+  async handleReserveFunds(@Payload() data: any) {
     this.logger.log(
-      `TransferRequested received: correlationId=${data.correlationId}`,
+      `ReserveFunds command received: correlationId=${data.correlationId}`,
     );
 
     const { sourceAccountId, targetAccountId, amount, correlationId, eventId } = data;
@@ -41,8 +39,8 @@ export class TransferEventsController {
 
       this.logger.log(`Funds reserved successfully for correlationId=${correlationId}`);
 
-      // Emitimos evento para pasar al Paso 2
-      this.accountClient.emit('FundsReserved', {
+      // Emitir Evento a Transaction Service
+      this.transactionClient.emit('FundsReserved', {
         eventId: crypto.randomUUID(),
         correlationId,
         sourceAccountId,
@@ -53,22 +51,20 @@ export class TransferEventsController {
     } catch (error: any) {
       this.logger.error(`Failed to reserve funds: ${error.message} [corr: ${correlationId}]`);
       
-      const failedEvent = {
+      this.transactionClient.emit('FundsReservationRejected', {
         eventId: crypto.randomUUID(),
-        eventType: 'TransferFailed',
         correlationId,
-        producer: 'account-service',
-        payload: { reason: error.message, sourceAccountId, targetAccountId, amount },
-      };
-
-      this.transactionClient.emit('TransferFailed', failedEvent);
-      this.notificationClient.emit('TransferFailed', failedEvent);
+        sourceAccountId,
+        targetAccountId,
+        amount,
+        reason: error.message,
+      });
     }
   }
 
-  @EventPattern('FundsReserved')
-  async handleFundsReserved(@Payload() data: any) {
-    this.logger.log(`FundsReserved received: correlationId=${data.correlationId}`);
+  @EventPattern('CreditDestination')
+  async handleCreditDestination(@Payload() data: any) {
+    this.logger.log(`CreditDestination command received: correlationId=${data.correlationId}`);
 
     const { sourceAccountId, targetAccountId, amount, correlationId, eventId } = data;
 
@@ -89,23 +85,18 @@ export class TransferEventsController {
 
       this.logger.log(`Credit applied successfully for correlationId=${correlationId}`);
 
-      // Transacción finalizada exitosamente
-      const completedEvent = {
+      this.transactionClient.emit('DestinationCredited', {
         eventId: crypto.randomUUID(),
-        eventType: 'TransferCompleted',
         correlationId,
-        producer: 'account-service',
-        payload: { sourceAccountId, targetAccountId, amount, status: 'COMPLETED' },
-      };
-
-      this.transactionClient.emit('TransferCompleted', completedEvent);
-      this.notificationClient.emit('TransferCompleted', completedEvent);
+        sourceAccountId,
+        targetAccountId,
+        amount,
+      });
 
     } catch (error: any) {
       this.logger.error(`Failed to apply credit: ${error.message} [corr: ${correlationId}]`);
       
-      // Emitimos evento de fallo para disparar la Compensación (Rollback)
-      this.accountClient.emit('CreditFailed', {
+      this.transactionClient.emit('DestinationCreditRejected', {
         eventId: crypto.randomUUID(),
         correlationId,
         sourceAccountId,
@@ -116,9 +107,9 @@ export class TransferEventsController {
     }
   }
 
-  @EventPattern('CreditFailed')
-  async handleCreditFailed(@Payload() data: any) {
-    this.logger.log(`CreditFailed received - Executing COMPENSATING TRANSACTION (Rollback) for correlationId=${data.correlationId}`);
+  @EventPattern('ReleaseFunds')
+  async handleReleaseFunds(@Payload() data: any) {
+    this.logger.log(`ReleaseFunds command received - Executing COMPENSATING TRANSACTION (Rollback) for correlationId=${data.correlationId}`);
 
     const { sourceAccountId, targetAccountId, amount, correlationId, eventId, reason } = data;
 
@@ -138,17 +129,14 @@ export class TransferEventsController {
 
       this.logger.log(`Rollback completed successfully for correlationId=${correlationId}`);
 
-      // Notificar al mundo que la transferencia falló
-      const failedEvent = {
+      this.transactionClient.emit('FundsReleased', {
         eventId: crypto.randomUUID(),
-        eventType: 'TransferFailed',
         correlationId,
-        producer: 'account-service',
-        payload: { reason, sourceAccountId, targetAccountId, amount },
-      };
-
-      this.transactionClient.emit('TransferFailed', failedEvent);
-      this.notificationClient.emit('TransferFailed', failedEvent);
+        sourceAccountId,
+        targetAccountId,
+        amount,
+        reason,
+      });
 
     } catch (error: any) {
       this.logger.error(`CRITICAL: Failed to execute rollback: ${error.message} [corr: ${correlationId}]`);
