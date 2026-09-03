@@ -4,6 +4,9 @@ import { CustomerController } from './controllers/customer.controller.js';
 import { AccountController } from './controllers/account.controller.js';
 import { TransactionController } from './controllers/transaction.controller.js';
 import { PaymentController } from './controllers/payment.controller.js';
+import { AuthController } from './controllers/auth.controller.js';
+import { CashierController } from './controllers/cashier.controller.js';
+import { CustomerHttpService } from './customer-http.service.js';
 
 // FIX P1: All RabbitMQ URLs now read from environment variables instead of being hardcoded.
 // In Kubernetes, RABBITMQ_URL = "amqp://rabbitmq:5672"
@@ -53,10 +56,12 @@ const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://localhost:5672';
   ],
   controllers: [
     CustomerController,
+    AuthController,
+    CashierController,
     AccountController,
     TransactionController,
     PaymentController,
   ],
-  providers: [],
+  providers: [CustomerHttpService],
 })
 export class AppModule {}
