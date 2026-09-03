@@ -1,0 +1,44 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../node_modules/@prisma/client-payment"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  transactionId String
+  correlationId String        @unique
+  amount        Decimal       @db.Decimal(15, 2)
+  status        PaymentStatus @default(PENDING)
+  type          PaymentType   @default(INTERNAL)
+  description   String?
+  failReason    String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  processedEvents ProcessedEvent[]
+}
+
+model ProcessedEvent {
+  id          String   @id @default(uuid())
+  eventId     String   @unique
+  processedAt DateTime @default(now())
+  paymentId   String
+  payment     Payment  @relation(fields: [paymentId], references: [id])
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PROCESSING
+}
+
+enum PaymentType {
+  INTERNAL
+  EXTERNAL
+}

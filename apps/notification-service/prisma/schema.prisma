@@ -1,0 +1,23 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../node_modules/@prisma/client-notification"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Este modelo es un ejemplo para el Notification & Audit Service
+model AuditLog {
+  id            Int      @id @default(autoincrement())
+  eventId       String   @unique
+  eventType     String
+  eventVersion  Int      @default(1)
+  correlationId String
+  causationId   String?
+  producer      String
+  payload       Json
+  occurredAt    DateTime
+  consumedAt    DateTime @default(now())
+}
