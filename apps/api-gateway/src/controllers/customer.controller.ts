@@ -2,76 +2,135 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Inject,
+  Patch,
   Param,
   Post,
   Put,
-  HttpException,
-  HttpStatus,
+  Req,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { v4 as uuidv4 } from 'uuid';
-import { timeout, catchError } from 'rxjs/operators';
-import { throwError } from 'rxjs';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { CustomerHttpService } from '../customer-http.service.js';
+import type { CorrelatedRequest } from '../request-context.js';
+import { rpcToHttp } from '../rpc-to-http.js';
 
-const SERVICE_TIMEOUT_MS = 8000;
+const photoOptions = {
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+    files: 1,
+    fields: 10,
+    fieldSize: 4 * 1024,
+    parts: 11,
+  },
+};
 
 @Controller('api/customers')
 export class CustomerController {
   constructor(
     @Inject('CUSTOMER_SERVICE') private readonly client: ClientProxy,
+    private readonly customerHttp: CustomerHttpService,
   ) {}
 
   @Post()
-  registerCustomer(@Body() data: any) {
-    // Inyectamos correlationId para trazabilidad (RNF-07)
-    const payload = { ...data, correlationId: uuidv4() };
-    return this.client.send('register_customer', payload).pipe(
-      timeout(SERVICE_TIMEOUT_MS),
-      catchError(() =>
-        throwError(
-          () =>
-            new HttpException(
-              'Customer Service no disponible',
-              HttpStatus.SERVICE_UNAVAILABLE,
-            ),
-        ),
-      ),
+  @UseInterceptors(FileInterceptor('identityPhoto', photoOptions))
+  registerCustomer(
+    @Body() data: Record<string, unknown>,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Req() request: CorrelatedRequest,
+    @Headers('authorization') authorization?: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.customerHttp.registerCustomer(data, file, {
+      authorization,
+      correlationId: request.correlationId,
+      idempotencyKey,
+    });
+  }
+
+  @Get()
+  listCustomers(
+    @Req() request: CorrelatedRequest,
+    @Headers('authorization') authorization?: string,
+  ) {
+    return rpcToHttp(
+      this.client.send('list_customers', {
+        authorization,
+        correlationId: request.correlationId,
+      }),
     );
   }
 
   @Get(':id')
-  getCustomer(@Param('id') id: string) {
-    return this.client
-      .send('get_customer', { id, correlationId: uuidv4() })
-      .pipe(
-        timeout(SERVICE_TIMEOUT_MS),
-        catchError(() =>
-          throwError(
-            () =>
-              new HttpException(
-                'Customer Service no disponible',
-                HttpStatus.SERVICE_UNAVAILABLE,
-              ),
-          ),
-        ),
-      );
+  getCustomer(
+    @Param('id') id: string,
+    @Req() request: CorrelatedRequest,
+    @Headers('authorization') authorization?: string,
+  ) {
+    return rpcToHttp(
+      this.client.send('get_customer', {
+        id,
+        authorization,
+        correlationId: request.correlationId,
+      }),
+    );
   }
 
-  @Put(':id')
-  updateCustomer(@Param('id') id: string, @Body() data: any) {
-    const payload = { id, ...data, correlationId: uuidv4() };
-    return this.client.send('update_customer', payload).pipe(
-      timeout(SERVICE_TIMEOUT_MS),
-      catchError(() =>
-        throwError(
-          () =>
-            new HttpException(
-              'Customer Service no disponible',
-              HttpStatus.SERVICE_UNAVAILABLE,
-            ),
-        ),
-      ),
+  @Patch(':id')
+  updateCustomer(
+    @Param('id') id: string,
+    @Body() customer: Record<string, unknown>,
+    @Req() request: CorrelatedRequest,
+    @Headers('authorization') authorization?: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return rpcToHttp(
+      this.client.send('update_customer', {
+        id,
+        customer,
+        authorization,
+        correlationId: request.correlationId,
+        idempotencyKey,
+      }),
+    );
+  }
+
+  @Put(':id/identity-document')
+  @UseInterceptors(FileInterceptor('identityPhoto', photoOptions))
+  updateIdentityDocument(
+    @Param('id') id: string,
+    @Body() data: Record<string, unknown>,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Req() request: CorrelatedRequest,
+    @Headers('authorization') authorization?: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.customerHttp.updateIdentityDocument(id, data, file, {
+      authorization,
+      correlationId: request.correlationId,
+      idempotencyKey,
+    });
+  }
+
+  @Post(':id/block')
+  blockCustomer(
+    @Param('id') id: string,
+    @Body('version') version: number,
+    @Req() request: CorrelatedRequest,
+    @Headers('authorization') authorization?: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return rpcToHttp(
+      this.client.send('block_customer', {
+        id,
+        version,
+        authorization,
+        correlationId: request.correlationId,
+        idempotencyKey,
+      }),
     );
   }
 }

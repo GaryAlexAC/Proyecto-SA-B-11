@@ -26,24 +26,34 @@ El proyecto está estructurado como un **Monorepo** gestionado por [Turborepo](h
 - Docker y Docker Compose
 - PostgreSQL instalado localmente (o usar un contenedor)
 
-### 2. Levantar la Infraestructura (Base de datos y RabbitMQ)
+### 2. Levantar el stack completo
 ```bash
-docker-compose up -d
+docker compose up --build -d
 ```
 
-### 3. Instalación de Dependencias
+Compose inicia PostgreSQL, RabbitMQ, los cinco microservicios, API Gateway y el frontend. Los servicios aplican sus esquemas de base de datos al iniciar y Customer Service crea el administrador inicial de forma idempotente.
+
+- Frontend: `http://localhost:5173`
+- API Gateway: `http://localhost:3000`
+- RabbitMQ Management: `http://localhost:15672`
+
+Las variables configurables y credenciales iniciales están enumeradas en `.env.example`.
+
+### 3. Desarrollo local sin contenedores
 ```bash
 npm install
 ```
 
-### 4. Generar Clientes de Prisma (Aislados)
-Debido a la arquitectura desacoplada, cada microservicio tiene su propio cliente Prisma para evitar colisiones:
+Cada microservicio tiene su propio cliente Prisma. Para generarlos manualmente se debe indicar cada esquema:
 ```bash
-npx prisma generate
+npx prisma generate --schema=apps/customer-service/prisma/schema.prisma
+npx prisma generate --schema=apps/account-service/prisma/schema.prisma
+npx prisma generate --schema=apps/transaction-service/prisma/schema.prisma
+npx prisma generate --schema=apps/payment-service/prisma/schema.prisma
+npx prisma generate --schema=apps/notification-service/prisma/schema.prisma
 ```
-*(Nota: Si usas la base de datos local por primera vez, asegúrate de correr `npx prisma db push` en cada microservicio).*
 
-### 5. Iniciar Servidores en Modo Desarrollo
+### 4. Iniciar servidores en modo desarrollo
 Arranca todos los microservicios en paralelo utilizando Turborepo:
 ```bash
 npm run dev

@@ -1,0 +1,69 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum CustomerRole {
+  ADMIN
+  CASHIER
+  CLIENT
+}
+
+enum CustomerStatus {
+  INACTIVE
+  ACTIVE
+  BLOCKED
+}
+
+model Customer {
+  id                       String         @id @default(uuid())
+  fullName                 String
+  document                 String         @unique
+  email                    String         @unique
+  birthDate                DateTime
+  address                  String
+  identityPhoto            Bytes?
+  identityPhotoMimeType    String?
+  passwordHash             String
+  username                 String         @unique
+  role                     CustomerRole
+  status                   CustomerStatus @default(INACTIVE)
+  activationTokenHash      String?        @unique
+  activationTokenExpiresAt DateTime?
+  activatedAt              DateTime?
+  version                  Int            @default(1)
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
+}
+
+model IdempotencyRecord {
+  key         String   @id
+  operation   String
+  resourceId  String
+  createdAt   DateTime @default(now())
+
+  @@index([operation, resourceId])
+}
+
+model OutboxEvent {
+  id            String   @id @default(uuid())
+  eventType     String
+  eventVersion  Int      @default(1)
+  occurredAt    DateTime @default(now())
+  correlationId String
+  causationId   String?
+  producer      String   @default("customer-service")
+  payload       Json
+  attempts      Int      @default(0)
+  nextAttemptAt DateTime @default(now())
+  publishedAt   DateTime?
+  failedAt      DateTime?
+  lastError     String?
+
+  @@index([publishedAt, failedAt, nextAttemptAt])
+}
