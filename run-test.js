@@ -57,7 +57,39 @@ async function runSagaTest() {
     console.log(`🏦 Saldo final USAC: Q. ${finalTarget.balance} (Esperado: 1500)\n`);
 
     console.log('===================================================');
-    console.log('✨ PRUEBA COMPLETADA EXITOSAMENTE ✨');
+    console.log('✨ PRUEBA 1 COMPLETADA EXITOSAMENTE ✨');
+    console.log('===================================================\n');
+
+    // 5. Prueba de Rollback
+    console.log('5️⃣ Iniciando prueba de fallo (Transacción Compensatoria)...');
+    console.log(`📡 Intentando transferir Q. 500 a una cuenta que NO EXISTE.`);
+    res = await fetch(`${GATEWAY_URL}/transactions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sourceAccount: sourceAccount.id,
+        targetAccount: '00000000-0000-0000-0000-000000000000', // Inválida
+        amount: 500.00
+      })
+    });
+    const failedTx = await res.json();
+    console.log(`✅ Transacción fallida registrada con ID = ${failedTx.id} | Estado Inicial = ${failedTx.status}\n`);
+
+    console.log('⏳ Esperando 3 segundos para que ocurra el débito, el fallo de abono, y la compensación (reembolso)...');
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    console.log('\n6️⃣ Verificando que el saldo original fue restaurado...');
+    res = await fetch(`${GATEWAY_URL}/accounts/${sourceAccount.id}/balance`);
+    const refundedSource = await res.json();
+    console.log(`💰 Saldo final Andrés: Q. ${refundedSource.balance} (Esperado: 3500)`);
+    
+    // Obtener estado final de la transacción
+    res = await fetch(`${GATEWAY_URL}/transactions/${failedTx.id}`);
+    const finalTx = await res.json();
+    console.log(`📝 Estado final de la transacción: ${finalTx.status} (Razón: ${finalTx.failReason})\n`);
+
+    console.log('===================================================');
+    console.log('✨ SAGA CON ROLLBACK COMPROBADA CON ÉXITO ✨');
     console.log('===================================================');
 
   } catch (error) {

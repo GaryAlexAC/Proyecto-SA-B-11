@@ -38,15 +38,8 @@ export class AccountsService {
     });
   }
 
-  /**
-   * FIX BUG #3: Executes a full transfer (debit + credit) as a single atomic
-   * Prisma transaction, eliminating the race condition where the source could
-   * be debited even if the target account does not exist.
-   *
-   * Idempotency: the `eventId` is used as a unique marker. If the event was
-   * already processed, returns null immediately (safe to retry).
-   */
-  async transferFunds(
+  // Paso 1: Reserva de fondos (Débito)
+  async reserveFunds(
     sourceAccountId: string,
     targetAccountId: string,
     amount: number,
@@ -54,18 +47,14 @@ export class AccountsService {
     eventId: string,
   ) {
     return await this.prisma.$transaction(async (tx) => {
-      // 1. Idempotency check — prevents double-processing of the same event
       const alreadyProcessed = await tx.processedEvent.findUnique({
         where: { eventId },
       });
       if (alreadyProcessed) {
-        this.logger.log(
-          `Event ${eventId} already processed (idempotency check)`,
-        );
+        this.logger.log(`Event ${eventId} already processed (idempotency check)`);
         return null;
       }
 
-      // 2. Validate SOURCE account BEFORE any mutation
       const sourceAccount = await tx.account.findUnique({
         where: { id: sourceAccountId },
       });
@@ -75,7 +64,36 @@ export class AccountsService {
       if (Number(sourceAccount.balance) < amount)
         throw new Error('Insufficient funds');
 
-      // 3. Validate TARGET account BEFORE debiting source (prevents orphaned debits)
+      await tx.account.update({
+        where: { id: sourceAccountId },
+        data: { balance: { decrement: amount }, lastActivity: new Date() },
+      });
+
+      await tx.processedEvent.create({
+        data: { eventId, accountId: sourceAccountId },
+      });
+
+      this.logger.log(
+        `Funds reserved: ${amount} from ${sourceAccountId} [corr: ${correlationId}]`,
+      );
+      return { sourceAccountId, targetAccountId, amount, correlationId };
+    });
+  }
+
+  // Paso 2: Abono (Crédito)
+  async applyCredit(
+    sourceAccountId: string,
+    targetAccountId: string,
+    amount: number,
+    correlationId: string,
+    eventId: string,
+  ) {
+    return await this.prisma.$transaction(async (tx) => {
+      const alreadyProcessed = await tx.processedEvent.findUnique({
+        where: { eventId },
+      });
+      if (alreadyProcessed) return null;
+
       const targetAccount = await tx.account.findUnique({
         where: { id: targetAccountId },
       });
@@ -83,27 +101,48 @@ export class AccountsService {
       if (targetAccount.status !== AccountStatus.ACTIVE)
         throw new Error('Target account is not active');
 
-      // 4. Debit source
-      await tx.account.update({
-        where: { id: sourceAccountId },
-        data: { balance: { decrement: amount }, lastActivity: new Date() },
-      });
-
-      // 5. Credit target
       await tx.account.update({
         where: { id: targetAccountId },
         data: { balance: { increment: amount }, lastActivity: new Date() },
       });
 
-      // 6. Register processed event (idempotency marker tied to the source account)
+      await tx.processedEvent.create({
+        data: { eventId, accountId: targetAccountId },
+      });
+
+      this.logger.log(
+        `Credit applied: ${amount} to ${targetAccountId} [corr: ${correlationId}]`,
+      );
+      return { sourceAccountId, targetAccountId, amount, correlationId };
+    });
+  }
+
+  // Paso 3 (Compensación): Reembolso (Rollback del Débito)
+  async refundFunds(
+    sourceAccountId: string,
+    amount: number,
+    correlationId: string,
+    eventId: string,
+  ) {
+    return await this.prisma.$transaction(async (tx) => {
+      const alreadyProcessed = await tx.processedEvent.findUnique({
+        where: { eventId },
+      });
+      if (alreadyProcessed) return null;
+
+      await tx.account.update({
+        where: { id: sourceAccountId },
+        data: { balance: { increment: amount }, lastActivity: new Date() },
+      });
+
       await tx.processedEvent.create({
         data: { eventId, accountId: sourceAccountId },
       });
 
       this.logger.log(
-        `Transfer completed: ${amount} from ${sourceAccountId} to ${targetAccountId} [corr: ${correlationId}]`,
+        `Refund applied (Compensating transaction): ${amount} to ${sourceAccountId} [corr: ${correlationId}]`,
       );
-      return { sourceAccountId, targetAccountId, amount };
+      return { sourceAccountId, amount, correlationId };
     });
   }
 
