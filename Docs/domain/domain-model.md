@@ -6,8 +6,8 @@
 | --- | --- | --- |
 | Cliente | Información, credenciales y ciclo de vida del cliente. | `ACTIVE`, `INACTIVE`, `BLOCKED` |
 | Cuenta | Cuenta monetaria o de ahorro, saldo y fondos reservados. | `ACTIVE`, `INACTIVE`, `BLOCKED` |
-| Transferencia | Operación entre cuenta origen y destino. | `REQUESTED`, `PENDING`, `COMPLETED`, `FAILED`, `COMPENSATING`, `COMPENSATED` |
-| Pago | Solicitud y resultado de un pago. | `PENDING`, `PROCESSING`, `APPROVED`, `REJECTED`, `FAILED` |
+| Transferencia | Operación entre cuenta origen y destino. | `PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`, `COMPENSATING` |
+| Pago | Solicitud y resultado de un pago. | `PENDING`, `PROCESSING`, `APPROVED`, `REJECTED` |
 | Auditoría | Registro de eventos y operaciones relevantes. | No aplica |
 
 ## Reglas de negocio
