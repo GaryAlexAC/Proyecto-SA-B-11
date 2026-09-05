@@ -23,6 +23,40 @@ spec:
         env:
         - name: DATABASE_URL
           value: "postgresql://admin:password123@host.minikube.internal:5433/db_customer?schema=public"
+        - name: RABBITMQ_URL
+          value: "amqp://rabbitmq:5672"
+        - name: PORT
+          value: "3001"
+        - name: JWT_SECRET
+          value: "bank-usac-jwt-secret-key-2026-proyecto"
+        - name: JWT_EXPIRES_IN
+          value: "1h"
+        - name: ACTIVATION_URL_BASE
+          value: "http://localhost:30000/activate/"
+        - name: ACTIVATION_TOKEN_TTL_HOURS
+          value: "24"
+        # SRE: Health probes prevent traffic to pods that aren't ready
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 15
+          periodSeconds: 30
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "250m"
 ---
 apiVersion: v1
 kind: Service
