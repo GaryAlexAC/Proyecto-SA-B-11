@@ -23,6 +23,28 @@ model Payment {
   processedEvents ProcessedEvent[]
 }
 
+model Company {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  services Service[]
+}
+
+model Service {
+  id        String   @id @default(uuid())
+  companyId String
+  name      String
+  amount    Decimal  @db.Decimal(15, 2)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, name])
+}
+
 model ProcessedEvent {
   id          String   @id @default(uuid())
   eventId     String   @unique

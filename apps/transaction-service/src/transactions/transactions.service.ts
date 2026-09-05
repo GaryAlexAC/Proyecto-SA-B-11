@@ -25,6 +25,7 @@ export class TransactionsService {
         correlationId,
         sourceAccountId: data.sourceAccount,
         targetAccountId: data.targetAccount,
+        companyId: data.companyId,
         amount: data.amount,
         status: TransactionStatus.PENDING,
       },
@@ -57,8 +58,37 @@ export class TransactionsService {
     return transaction;
   }
 
+  async createPaymentTransaction(data: any) {
+    this.logger.log(`Creating payment transaction...`);
+    const transaction = await this.prisma.transaction.create({
+      data: {
+        correlationId: data.correlationId,
+        sourceAccountId: data.sourceAccount,
+        companyId: data.companyId,
+        amount: data.amount,
+        status: TransactionStatus.PENDING,
+      },
+    });
+
+    this.accountClient.emit('ReserveFunds', {
+      eventId: crypto.randomUUID(),
+      eventType: 'ReserveFunds',
+      correlationId: data.correlationId,
+      producer: 'transaction-service',
+      sourceAccountId: data.sourceAccount,
+      targetAccountId: null,
+      amount: data.amount,
+    });
+
+    return transaction;
+  }
+
   async getTransaction(id: string) {
     return this.prisma.transaction.findUnique({ where: { id } });
+  }
+
+  async getTransactionByCorrelation(correlationId: string) {
+    return this.prisma.transaction.findUnique({ where: { correlationId } });
   }
 
   async getTransactionsByCustomer(

@@ -15,11 +15,11 @@ if (!jwtSecret || jwtSecret.length < 32) {
     JwtModule.register({ secret: jwtSecret }),
     ClientsModule.register([
       {
-        name: 'NOTIFICATION_SERVICE',
+        name: 'TRANSACTION_SERVICE',
         transport: Transport.RMQ,
         options: {
           urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
-          queue: 'notification_queue',
+          queue: 'transaction_queue',
           queueOptions: { durable: true },
         },
       },

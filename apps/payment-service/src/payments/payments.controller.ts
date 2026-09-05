@@ -27,10 +27,23 @@ export class PaymentsController {
     return this.paymentsService.getPayment(data.id);
   }
 
-  @EventPattern('TransferCompleted')
-  async handleTransferCompleted(@Payload() data: any) {
-    // Evento emitido asíncronamente por el transaction-service al finalizar la saga.
-    // No requiere JWT authorization.
-    return this.paymentsService.createPayment(data);
+  @MessagePattern('get_services')
+  async getServices(@Payload() data: AuthorizedMessage) {
+    await this.jwtAuth.authenticate(data.authorization, ['CASHIER', 'CLIENT']);
+    return this.paymentsService.getServices();
+  }
+
+  @EventPattern('PaymentTransactionCompleted')
+  async handlePaymentTransactionCompleted(@Payload() data: any) {
+    return this.paymentsService.completePayment(data.correlationId, data.eventId);
+  }
+
+  @EventPattern('PaymentTransactionFailed')
+  async handlePaymentTransactionFailed(@Payload() data: any) {
+    return this.paymentsService.failPayment(
+      data.correlationId,
+      data.reason || 'No fue posible completar el pago',
+      data.eventId,
+    );
   }
 }

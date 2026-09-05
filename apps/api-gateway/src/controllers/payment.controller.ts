@@ -34,6 +34,20 @@ export class PaymentController {
     );
   }
 
+  @Get('services')
+  getServices(
+    @Req() request: CorrelatedRequest,
+    @Headers('authorization') authorization?: string,
+  ) {
+    return rpcToHttp(
+      this.client.send('get_services', {
+        authorization,
+        correlationId: request.correlationId,
+      }),
+      'Payment Service',
+    );
+  }
+
   @Get(':id')
   getPaymentStatus(
     @Param('id') id: string,

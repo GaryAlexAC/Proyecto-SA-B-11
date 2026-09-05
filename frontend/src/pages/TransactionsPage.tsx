@@ -263,7 +263,11 @@ export function TransactionsPage() {
               >
                 <span>{formatDate(transaction.createdAt, true)}</span>
                 <code>{transaction.sourceAccountId.slice(0, 8)}…</code>
-                <code>{transaction.targetAccountId.slice(0, 8)}…</code>
+                <code>
+                  {transaction.targetAccountId
+                    ? `${transaction.targetAccountId.slice(0, 8)}…`
+                    : "Pago de servicio"}
+                </code>
                 <StatusBadge status={transaction.status} />
                 <strong>{formatMoney(transaction.amount)}</strong>
               </button>

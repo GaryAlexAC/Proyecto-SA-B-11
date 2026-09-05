@@ -70,7 +70,7 @@ export interface Transaction {
   id: string;
   correlationId: string;
   sourceAccountId: string;
-  targetAccountId: string;
+  targetAccountId: string | null;
   amount: Money;
   status: TransactionStatus;
   failReason: string | null;
@@ -89,4 +89,15 @@ export interface Payment {
   failReason: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface Service {
+  id: string;
+  companyId: string;
+  name: string;
+  amount: Money;
+  company: {
+    id: string;
+    name: string;
+  };
 }

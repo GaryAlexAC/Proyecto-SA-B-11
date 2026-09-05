@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../api";
-import type { Payment, PaymentType } from "../types";
+import { useAuth } from "../auth";
+import type { Account, Payment, Service } from "../types";
 import {
   Alert,
   Button,
@@ -14,31 +15,70 @@ import {
 } from "../ui";
 
 export function PaymentsPage() {
-  const [transactionId, setTransactionId] = useState("");
-  const [amount, setAmount] = useState("");
-  const [type, setType] = useState<PaymentType>("INTERNAL");
-  const [description, setDescription] = useState("");
+  const { session } = useAuth();
+  const user = session!.user;
+  const fixedCustomer = user.role === "CLIENT" ? user.customerId : "";
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [serviceId, setServiceId] = useState("");
+  const [sourceAccountId, setSourceAccountId] = useState("");
   const [lookupId, setLookupId] = useState("");
   const [result, setResult] = useState<Payment | null | undefined>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
+  const selectedService = services.find((service) => service.id === serviceId);
+
+  useEffect(() => {
+    async function loadPaymentOptions() {
+      try {
+        const [availableServices, customerAccounts] = await Promise.all([
+          api.getServices(),
+          fixedCustomer ? api.getAccounts(fixedCustomer) : Promise.resolve([]),
+        ]);
+        setServices(availableServices);
+        setAccounts(customerAccounts);
+      } catch (caught) {
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "No fue posible cargar las opciones de pago",
+        );
+      }
+    }
+
+    void loadPaymentOptions();
+  }, [fixedCustomer]);
+
+  useEffect(() => {
+    if (!result || result.status !== "PENDING") return;
+
+    const poll = window.setInterval(() => {
+      void api
+        .getPayment(result.id)
+        .then((payment) => {
+          if (payment) setResult(payment);
+        })
+        .catch(() => undefined);
+    }, 1_000);
+
+    return () => window.clearInterval(poll);
+  }, [result]);
+
   async function create(event: FormEvent) {
     event.preventDefault();
     setLoading(true);
     setError("");
-    setMessage("");
+      setMessage("");
     try {
       const payment = await api.createPayment({
-        transactionId: transactionId.trim() || undefined,
-        amount: Number(amount),
-        type,
-        description: description.trim() || undefined,
+        serviceId,
+        sourceAccountId: sourceAccountId.trim(),
       });
       setResult(payment);
       setLookupId(payment.id);
-      setMessage(`Pago procesado con estado ${payment.status}`);
+      setMessage(`Pago solicitado con estado ${payment.status}`);
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -84,38 +124,53 @@ export function PaymentsPage() {
           <div className="operation-form__number">01</div>
           <span className="overline">Registrar pago</span>
           <h2>Datos de la operación</h2>
-          <Field
-            label="Transacción relacionada"
-            value={transactionId}
-            onChange={(event) => setTransactionId(event.target.value)}
-            placeholder="UUID opcional"
-            hint="Puede omitirse para un pago independiente."
-          />
-          <div className="form-grid">
+          <SelectField
+            label="Servicio"
+            value={serviceId}
+            onChange={setServiceId}
+            required
+          >
+            <option value="" disabled>
+              Selecciona un servicio
+            </option>
+            {services.map((service) => (
+              <option key={service.id} value={service.id}>
+                {`${service.company.name} - ${service.name}`}
+              </option>
+            ))}
+          </SelectField>
+          {selectedService && (
             <Field
-              label="Monto"
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={amount}
-              onChange={(event) => setAmount(event.target.value)}
+              label="Monto a pagar"
+              value={formatMoney(selectedService.amount)}
+              readOnly
+            />
+          )}
+          {user.role === "CLIENT" ? (
+            <SelectField
+              label="Cuenta de pago"
+              value={sourceAccountId}
+              onChange={setSourceAccountId}
+              required
+            >
+              <option value="" disabled>
+                Selecciona una cuenta
+              </option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {`Cuenta ${account.type.toLowerCase()} - ${account.id}`}
+                </option>
+              ))}
+            </SelectField>
+          ) : (
+            <Field
+              label="Cuenta de pago"
+              value={sourceAccountId}
+              onChange={(event) => setSourceAccountId(event.target.value)}
+              placeholder="UUID de la cuenta"
               required
             />
-            <SelectField
-              label="Tipo"
-              value={type}
-              onChange={(value) => setType(value as PaymentType)}
-            >
-              <option value="INTERNAL">Interno</option>
-              <option value="EXTERNAL">Externo</option>
-            </SelectField>
-          </div>
-          <Field
-            label="Descripción"
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            placeholder="Concepto del pago"
-          />
+          )}
           <Button type="submit" disabled={loading}>
             {loading ? "Procesando..." : "Procesar pago"} <Icon name="arrow" />
           </Button>

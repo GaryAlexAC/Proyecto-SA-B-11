@@ -21,6 +21,12 @@ export class TransactionsController {
     return this.transactionsService.createTransaction(data);
   }
 
+  @MessagePattern('create_payment_transaction')
+  async createPaymentTransaction(@Payload() data: any) {
+    await this.jwtAuth.authenticate(data.authorization, ['CASHIER', 'CLIENT']);
+    return this.transactionsService.createPaymentTransaction(data);
+  }
+
   @MessagePattern('get_transaction')
   async getTransaction(@Payload() data: AuthorizedMessage & { id: string }) {
     await this.jwtAuth.authenticate(data.authorization, ['CASHIER', 'CLIENT']);

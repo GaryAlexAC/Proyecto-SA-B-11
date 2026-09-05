@@ -6,7 +6,7 @@ import type {
   CustomerInput,
   CustomerUpdateInput,
   Payment,
-  PaymentType,
+  Service,
   Transaction,
 } from "./types";
 
@@ -202,10 +202,8 @@ export const api = {
   },
 
   createPayment(input: {
-    transactionId?: string;
-    amount: number;
-    type: PaymentType;
-    description?: string;
+    serviceId: string;
+    sourceAccountId: string;
   }) {
     return request<Payment>("/api/payments", {
       method: "POST",
@@ -217,6 +215,10 @@ export const api = {
     return request<Payment | null>(
       `/api/payments/${encodeURIComponent(paymentId)}`,
     );
+  },
+
+  getServices() {
+    return request<Service[]>("/api/payments/services");
   },
 };
 

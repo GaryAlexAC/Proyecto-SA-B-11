@@ -17,6 +17,31 @@ export class AccountEventsController {
   @EventPattern('FundsReserved')
   async handleFundsReserved(@Payload() data: any) {
     this.logger.log(`FundsReserved received for correlationId: ${data.correlationId}`);
+
+    const transaction = await this.transactionsService.getTransactionByCorrelation(
+      data.correlationId,
+    );
+    if (transaction?.companyId) {
+      await this.transactionsService.completeTransaction(
+        data.correlationId,
+        data.eventId,
+      );
+      this.notificationClient.emit('TransferCompleted', {
+        eventId: crypto.randomUUID(),
+        eventType: 'TransferCompleted',
+        correlationId: data.correlationId,
+        payload: {
+          sourceAccountId: data.sourceAccountId,
+          amount: data.amount,
+          status: 'COMPLETED',
+        },
+      });
+      this.paymentClient.emit('PaymentTransactionCompleted', {
+        eventId: crypto.randomUUID(),
+        correlationId: data.correlationId,
+      });
+      return;
+    }
     
     // Marcar como PROCESSING
     await this.transactionsService.updateTransactionStatus(
@@ -39,6 +64,29 @@ export class AccountEventsController {
   @EventPattern('FundsReservationRejected')
   async handleFundsReservationRejected(@Payload() data: any) {
     this.logger.log(`FundsReservationRejected received for correlationId: ${data.correlationId}`);
+
+    const transaction = await this.transactionsService.getTransactionByCorrelation(
+      data.correlationId,
+    );
+    if (transaction?.companyId) {
+      await this.transactionsService.failTransaction(
+        data.correlationId,
+        data.reason || 'Insufficient funds or account inactive',
+        data.eventId,
+      );
+      this.notificationClient.emit('TransferFailed', {
+        eventId: crypto.randomUUID(),
+        eventType: 'TransferFailed',
+        correlationId: data.correlationId,
+        payload: { reason: data.reason },
+      });
+      this.paymentClient.emit('PaymentTransactionFailed', {
+        eventId: crypto.randomUUID(),
+        correlationId: data.correlationId,
+        reason: data.reason,
+      });
+      return;
+    }
     
     await this.transactionsService.failTransaction(
       data.correlationId,
@@ -75,15 +123,6 @@ export class AccountEventsController {
       },
     });
 
-    this.paymentClient.emit('TransferCompleted', {
-      eventId: crypto.randomUUID(),
-      eventType: 'TransferCompleted',
-      correlationId: data.correlationId,
-      transactionId: data.correlationId,
-      amount: data.amount,
-      type: 'INTERNAL',
-      description: 'Transferencia completada por la saga',
-    });
   }
 
   @EventPattern('DestinationCreditRejected')
