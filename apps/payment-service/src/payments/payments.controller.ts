@@ -1,5 +1,5 @@
 import { Controller } from '@nestjs/common';
-import { MessagePattern, Payload } from '@nestjs/microservices';
+import { MessagePattern, EventPattern, Payload } from '@nestjs/microservices';
 import { JwtAuthService } from '../auth/jwt-auth.service.js';
 import { PaymentsService } from './payments.service.js';
 
