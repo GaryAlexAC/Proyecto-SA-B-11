@@ -22,7 +22,7 @@ spec:
         - containerPort: 3000
         env:
         - name: DATABASE_URL
-          value: "postgresql://admin:password123@host.docker.internal:5432/db_customer?schema=public"
+          value: "postgresql://admin:password123@192.168.49.1:5432/db_customer?schema=public"
         - name: RABBITMQ_URL
           value: "amqp://rabbitmq:5672"
         - name: PORT
@@ -32,7 +32,7 @@ spec:
         - name: JWT_EXPIRES_IN
           value: "1h"
         - name: ACTIVATION_URL_BASE
-          value: "http://localhost/?token="
+          value: "http://localhost:8080/"
         - name: ACTIVATION_TOKEN_TTL_HOURS
           value: "24"
         - name: ADMIN_USERNAME
