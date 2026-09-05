@@ -5,9 +5,9 @@
 | Decisión implementada | Evidencia |
 | --- | --- |
 | Cinco microservicios de negocio | Existen Customer, Account, Transaction, Payment y Notification & Audit Service en `apps/`. |
-| Mensajería interna con RabbitMQ | Los servicios usan colas RMQ; el API Gateway realiza RPC sobre `customer_queue`, `account_queue`, `transaction_queue` y `payment_queue`. |
+| Mensajería interna con RabbitMQ | Los servicios usan `customer_queue`, `account_queue`, `transaction_queue`, `payment_queue` y `notification_queue`; el API Gateway realiza RPC sobre las cuatro primeras. |
 | Persistencia aislada por servicio | Cada servicio contiene un esquema Prisma y usa su propia conexión `DATABASE_URL`. |
-| Saga parcial de transferencias | Transaction Service envía `ReserveFunds`, `CreditDestination` y, ante rechazo de crédito, `ReleaseFunds`. |
+| Saga coreografiada de transacciones | Transaction y Account Service reaccionan a eventos de estado; Account Service mantiene reservas compensables sin que otro servicio modifique sus saldos. |
 | Monorepo | La raíz usa npm workspaces y Turborepo. |
 
 El API Gateway no coordina la Saga ni publica eventos de dominio. Customer Service también arranca un servidor HTTP, por lo que el punto único de entrada no puede afirmarse como una restricción técnica absoluta.

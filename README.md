@@ -7,9 +7,9 @@ Este repositorio contiene la implementación de una arquitectura basada en **Mic
 El proyecto está estructurado como un **Monorepo** gestionado por [Turborepo](https://turbo.build/) y contiene los siguientes microservicios construidos con **NestJS**:
 
 - **`api-gateway`**: Expone los endpoints REST hacia los clientes (UI/Postman) y enruta el tráfico hacia RabbitMQ.
-- **`account-service`**: Gestiona la creación de cuentas y saldos de clientes.
-- **`transaction-service`**: Orquesta y procesa transferencias bancarias usando Sagas.
-- **`payment-service`**: (Proyección) Integraciones con servicios de pago.
+- **`account-service`**: Gestiona cuentas, saldo disponible y reservas de fondos.
+- **`transaction-service`**: Registra transferencias y reacciona a los eventos de la Saga coreografiada.
+- **`payment-service`**: Gestiona compañías, servicios y pagos asociados a transacciones.
 - **`notification-service`**: Auditoría y simulaciones de envío de correos sobre transacciones completadas.
 
 ### 🔌 Tecnologías Clave

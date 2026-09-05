@@ -9,9 +9,9 @@ El diagrama muestra la descomposición interna de **Transaction Service** y sus 
 
 - El API Gateway envía las solicitudes de creación y consulta de transferencias a TransactionsController mediante `AMQP`.
 - TransactionsController recibe los comandos `create_transaction`, `get_transaction` y `get_transactions_by_customer`, y delega su procesamiento a **TransactionsService**.
-- AccountEventsController recibe los eventos de Account Service: `FundsReserved`, `FundsReservationRejected`, `DestinationCredited`, `DestinationCreditRejected` y `FundsReleased`.
-- **TransactionsService** crea y consulta transferencias, actualiza sus estados y coordina los comandos de la Saga.
-- **Messaging Component** representa la comunicación con RabbitMQ. Publica comandos hacia Account Service y eventos de transferencia para el servicio de notificaciones; también recibe los eventos necesarios para continuar o compensar una transferencia.
+- AccountEventsController recibe los eventos de Account Service: `FundsReserved`, `FundsReservationRejected`, `FundsCommitted` y `FundsReleased`.
+- **TransactionsService** crea y consulta transferencias, actualiza sus estados y publica los eventos que representan esos cambios.
+- **Messaging Component** representa la comunicación con RabbitMQ. Transaction Service publica `TransactionRequested` y `TransactionProcessing`; Account Service reacciona reservando, confirmando o liberando fondos. Ningún servicio modifica la base de datos de otro.
 - **PrismaService** es el único componente que accede a **Transaction Database** para persistir transferencias y eventos ya procesados.
 
 Cada microservicio posee una base de datos propia. Ningún microservicio consulta directamente la base de datos de otro.
