@@ -41,30 +41,67 @@ erDiagram
         string email UK
         datetime birthDate
         string address
+        bytes identityPhoto
+        string identityPhotoMimeType
         string passwordHash
         string username UK
         CustomerRole role
         CustomerStatus status
+        string activationTokenHash UK
+        datetime activationTokenExpiresAt
+        datetime activatedAt
+        int version
+        datetime createdAt
+        datetime updatedAt
+    }
+    IdempotencyRecord {
+        string key PK
+        string operation
+        string resourceId
+        datetime createdAt
+    }
+    OutboxEvent {
+        string id PK
+        string eventType
+        int eventVersion
+        datetime occurredAt
+        string correlationId
+        string causationId
+        string producer
+        json payload
+        int attempts
+        datetime nextAttemptAt
+        datetime publishedAt
+        datetime failedAt
+        string lastError
     }
 ```
+
+`Customer`, `IdempotencyRecord` y `OutboxEvent` no tienen claves foráneas entre sí.
 
 ### Account Service
 ```mermaid
 erDiagram
     Account {
         string id PK
-        string customerId FK
+        string customerId
         AccountType type
         decimal balance
         AccountStatus status
+        datetime lastActivity
+        datetime createdAt
+        datetime updatedAt
     }
     ProcessedEvent {
         string id PK
         string eventId UK
+        datetime processedAt
         string accountId FK
     }
     Account ||--o{ ProcessedEvent : "procesa"
 ```
+
+`Account.customerId` es una referencia lógica a `Customer` en Customer Service; no existe una clave foránea entre bases de datos.
 
 ### Transaction Service
 ```mermaid
@@ -72,38 +109,66 @@ erDiagram
     Transaction {
         string id PK
         string correlationId UK
-        string sourceAccountId FK
-        string targetAccountId FK
+        string sourceAccountId
+        string targetAccountId
+        string companyId
         decimal amount
         TransactionStatus status
         string failReason
+        datetime createdAt
+        datetime updatedAt
     }
     ProcessedEvent {
         string id PK
         string eventId UK
+        datetime processedAt
         string transactionId FK
     }
     Transaction ||--o{ ProcessedEvent : "procesa"
 ```
+
+`Transaction.sourceAccountId` y `Transaction.targetAccountId` son referencias lógicas a `Account` en Account Service. `Transaction.companyId` es una referencia lógica al UUID de `Company` en Payment Service. No existen claves foráneas entre bases de datos.
 
 ### Payment Service
 ```mermaid
 erDiagram
     Payment {
         string id PK
-        string transactionId FK
+        string transactionId
         string correlationId UK
         decimal amount
         PaymentStatus status
         PaymentType type
+        string description
+        string failReason
+        datetime createdAt
+        datetime updatedAt
+    }
+    Company {
+        string id PK
+        string name UK
+        datetime createdAt
+        datetime updatedAt
+    }
+    Service {
+        string id PK
+        string companyId FK
+        string name
+        decimal amount
+        datetime createdAt
+        datetime updatedAt
     }
     ProcessedEvent {
         string id PK
         string eventId UK
+        datetime processedAt
         string paymentId FK
     }
+    Company ||--o{ Service : "ofrece"
     Payment ||--o{ ProcessedEvent : "procesa"
 ```
+
+`Payment.transactionId` es una referencia lógica a `Transaction` en Transaction Service; no existe una clave foránea entre bases de datos. `Company.id` es el UUID referenciado por `Transaction.companyId` para las transacciones de servicios externos.
 
 ### Notification & Audit Service
 ```mermaid
@@ -112,9 +177,14 @@ erDiagram
         int id PK
         string eventId UK
         string eventType
+        int eventVersion
         string correlationId
+        string causationId
         string producer
         json payload
         datetime occurredAt
+        datetime consumedAt
     }
 ```
+
+`AuditLog` no tiene claves foráneas. Sus identificadores de correlación y causalidad vinculan eventos entre servicios a nivel de mensajería.
