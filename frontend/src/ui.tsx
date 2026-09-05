@@ -106,16 +106,22 @@ export function SelectField({
   children,
   value,
   onChange,
+  required,
 }: {
   label: string;
   children: ReactNode;
   value: string;
   onChange: (value: string) => void;
+  required?: boolean;
 }) {
   return (
     <label className="field">
       <span>{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)}>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        required={required}
+      >
         {children}
       </select>
     </label>

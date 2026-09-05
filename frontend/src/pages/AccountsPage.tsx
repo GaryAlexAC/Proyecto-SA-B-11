@@ -158,7 +158,7 @@ export function AccountsPage() {
                   <strong>
                     {balances[account.id] ?? formatMoney(account.balance)}
                   </strong>
-                  <code>•••• {account.id.slice(-8).toUpperCase()}</code>
+                  <code>{account.id.toUpperCase()}</code>
                   <div className="bank-card__bottom">
                     <span>
                       Última actividad

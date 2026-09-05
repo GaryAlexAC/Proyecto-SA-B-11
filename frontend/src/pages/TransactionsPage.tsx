@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../api";
 import { useAuth } from "../auth";
-import type { Transaction } from "../types";
+import type { Account, Transaction } from "../types";
 import {
   Alert,
   Button,
@@ -9,6 +9,7 @@ import {
   Field,
   Icon,
   Loading,
+  SelectField,
   StatusBadge,
   formatDate,
   formatMoney,
@@ -19,6 +20,7 @@ export function TransactionsPage() {
   const user = session!.user;
   const fixedCustomer = user.role === "CLIENT" ? user.customerId : "";
   const [customerId, setCustomerId] = useState(fixedCustomer);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [sourceAccount, setSourceAccount] = useState("");
   const [targetAccount, setTargetAccount] = useState("");
@@ -54,6 +56,24 @@ export function TransactionsPage() {
 
   useEffect(() => {
     if (fixedCustomer) void loadHistory(fixedCustomer);
+  }, [fixedCustomer]);
+
+  useEffect(() => {
+    if (!fixedCustomer) return;
+
+    async function loadSourceAccounts() {
+      try {
+        setAccounts(await api.getAccounts(fixedCustomer));
+      } catch (caught) {
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "No fue posible consultar las cuentas de origen",
+        );
+      }
+    }
+
+    void loadSourceAccounts();
   }, [fixedCustomer]);
 
   async function create(event: FormEvent) {
@@ -118,13 +138,31 @@ export function TransactionsPage() {
           <div className="operation-form__number">01</div>
           <span className="overline">Nueva operación</span>
           <h2>Transferir fondos</h2>
-          <Field
-            label="Cuenta origen"
-            value={sourceAccount}
-            onChange={(event) => setSourceAccount(event.target.value)}
-            placeholder="UUID de la cuenta"
-            required
-          />
+          {user.role === "CLIENT" ? (
+            <SelectField
+              label="Cuenta origen"
+              value={sourceAccount}
+              onChange={setSourceAccount}
+              required
+            >
+              <option value="" disabled>
+                Selecciona una cuenta
+              </option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {`Cuenta ${account.type.toLowerCase()} - ${account.id}`}
+                </option>
+              ))}
+            </SelectField>
+          ) : (
+            <Field
+              label="Cuenta origen"
+              value={sourceAccount}
+              onChange={(event) => setSourceAccount(event.target.value)}
+              placeholder="UUID de la cuenta"
+              required
+            />
+          )}
           <Field
             label="Cuenta destino"
             value={targetAccount}

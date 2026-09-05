@@ -1274,8 +1274,10 @@ p {
 }
 .bank-card > code {
   color: rgba(255, 255, 255, 0.68);
-  font-size: 0.7rem;
-  letter-spacing: 0.16em;
+  font-size: 0.66rem;
+  line-height: 1.45;
+  letter-spacing: 0.08em;
+  overflow-wrap: anywhere;
 }
 .bank-card--saving > code {
   color: rgba(16, 42, 67, 0.65);
