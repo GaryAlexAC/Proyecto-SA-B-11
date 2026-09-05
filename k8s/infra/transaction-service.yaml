@@ -14,13 +14,15 @@ spec:
     spec:
       containers:
       - name: transaction-service
-        image: transaction-service:latest
+        image: bank-usac/transaction-service:latest
         imagePullPolicy: Never
         env:
         - name: DATABASE_URL
-          value: "postgresql://admin:password123@host.minikube.internal:5432/db_transaction"
+          value: "postgresql://admin:password123@host.docker.internal:5432/db_transaction?schema=public"
         - name: RABBITMQ_URL
           value: "amqp://rabbitmq:5672"
+        - name: JWT_SECRET
+          value: "local-dev-jwt-secret-change-before-production-local-12345"
         livenessProbe:
           exec:
             command: ["node", "-e", "process.exit(0)"]

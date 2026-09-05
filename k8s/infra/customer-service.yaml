@@ -22,19 +22,27 @@ spec:
         - containerPort: 3000
         env:
         - name: DATABASE_URL
-          value: "postgresql://admin:password123@host.minikube.internal:5433/db_customer?schema=public"
+          value: "postgresql://admin:password123@host.docker.internal:5432/db_customer?schema=public"
         - name: RABBITMQ_URL
           value: "amqp://rabbitmq:5672"
         - name: PORT
           value: "3001"
         - name: JWT_SECRET
-          value: "bank-usac-jwt-secret-key-2026-proyecto"
+          value: "local-dev-jwt-secret-change-before-production-local-12345"
         - name: JWT_EXPIRES_IN
           value: "1h"
         - name: ACTIVATION_URL_BASE
-          value: "http://localhost:30000/activate/"
+          value: "http://localhost/?token="
         - name: ACTIVATION_TOKEN_TTL_HOURS
           value: "24"
+        - name: ADMIN_USERNAME
+          value: "admin"
+        - name: ADMIN_PASSWORD
+          value: "ChangeMe123"
+        - name: ADMIN_NAME
+          value: "Bank USAC Admin"
+        - name: ADMIN_EMAIL
+          value: "admin@bankusac.local"
         # SRE: Health probes prevent traffic to pods that aren't ready
         livenessProbe:
           httpGet:
@@ -67,5 +75,5 @@ spec:
     app: customer-service
   ports:
     - protocol: TCP
-      port: 3000
-      targetPort: 3000
+      port: 3001
+      targetPort: 3001

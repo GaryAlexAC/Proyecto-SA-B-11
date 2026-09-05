@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: api-gateway
-        image: api-gateway:latest
+        image: bank-usac/api-gateway:latest
         imagePullPolicy: Never
         ports:
         - containerPort: 3000
@@ -25,16 +25,20 @@ spec:
           value: "amqp://rabbitmq:5672"
         - name: FRONTEND_URL
           value: "*"
+        - name: CUSTOMER_SERVICE_HTTP_URL
+          value: "http://customer-service:3001"
+        - name: JWT_SECRET
+          value: "local-dev-jwt-secret-change-before-production-local-12345"
         livenessProbe:
           httpGet:
-            path: /
+            path: /health
             port: 3000
           initialDelaySeconds: 15
           periodSeconds: 30
           failureThreshold: 3
         readinessProbe:
           httpGet:
-            path: /
+            path: /health
             port: 3000
           initialDelaySeconds: 10
           periodSeconds: 10

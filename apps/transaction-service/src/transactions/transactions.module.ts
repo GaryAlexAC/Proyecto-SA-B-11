@@ -32,6 +32,15 @@ if (!jwtSecret || jwtSecret.length < 32) {
           queueOptions: { durable: true },
         },
       },
+      {
+        name: 'PAYMENT_SERVICE',
+        transport: Transport.RMQ,
+        options: {
+          urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
+          queue: 'payment_queue',
+          queueOptions: { durable: true },
+        },
+      },
     ]),
   ],
   providers: [TransactionsService, JwtAuthService],

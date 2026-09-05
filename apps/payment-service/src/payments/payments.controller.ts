@@ -26,4 +26,11 @@ export class PaymentsController {
     await this.jwtAuth.authenticate(data.authorization, ['CASHIER', 'CLIENT']);
     return this.paymentsService.getPayment(data.id);
   }
+
+  @EventPattern('TransferCompleted')
+  async handleTransferCompleted(@Payload() data: any) {
+    // Evento emitido asíncronamente por el transaction-service al finalizar la saga.
+    // No requiere JWT authorization.
+    return this.paymentsService.createPayment(data);
+  }
 }

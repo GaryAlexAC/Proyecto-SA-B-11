@@ -14,11 +14,11 @@ spec:
     spec:
       containers:
       - name: notification-service
-        image: notification-service:latest
+        image: bank-usac/notification-service:latest
         imagePullPolicy: Never
         env:
         - name: DATABASE_URL
-          value: "postgresql://admin:password123@host.minikube.internal:5432/db_notification"
+          value: "postgresql://admin:password123@host.docker.internal:5432/db_notification?schema=public"
         - name: RABBITMQ_URL
           value: "amqp://rabbitmq:5672"
         livenessProbe:

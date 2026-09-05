@@ -11,6 +11,7 @@ export class AccountEventsController {
     private readonly transactionsService: TransactionsService,
     @Inject('ACCOUNT_SERVICE') private readonly accountClient: ClientProxy,
     @Inject('NOTIFICATION_SERVICE') private readonly notificationClient: ClientProxy,
+    @Inject('PAYMENT_SERVICE') private readonly paymentClient: ClientProxy,
   ) {}
 
   @EventPattern('FundsReserved')
@@ -72,6 +73,16 @@ export class AccountEventsController {
         amount: data.amount,
         status: 'COMPLETED',
       },
+    });
+
+    this.paymentClient.emit('TransferCompleted', {
+      eventId: crypto.randomUUID(),
+      eventType: 'TransferCompleted',
+      correlationId: data.correlationId,
+      transactionId: data.correlationId,
+      amount: data.amount,
+      type: 'INTERNAL',
+      description: 'Transferencia completada por la saga',
     });
   }
 
