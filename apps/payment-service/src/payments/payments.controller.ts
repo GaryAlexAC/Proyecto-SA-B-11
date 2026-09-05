@@ -1,5 +1,5 @@
 import { Controller } from '@nestjs/common';
-import { MessagePattern, Payload } from '@nestjs/microservices';
+import { MessagePattern, EventPattern, Payload } from '@nestjs/microservices';
 import { JwtAuthService } from '../auth/jwt-auth.service.js';
 import { PaymentsService } from './payments.service.js';
 
@@ -25,5 +25,12 @@ export class PaymentsController {
   async getPayment(@Payload() data: AuthorizedMessage & { id: string }) {
     await this.jwtAuth.authenticate(data.authorization, ['CASHIER', 'CLIENT']);
     return this.paymentsService.getPayment(data.id);
+  }
+
+  @EventPattern('TransferCompleted')
+  async handleTransferCompleted(@Payload() data: any) {
+    // Evento emitido asíncronamente por el transaction-service al finalizar la saga.
+    // No requiere JWT authorization.
+    return this.paymentsService.createPayment(data);
   }
 }
