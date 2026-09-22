@@ -21,6 +21,19 @@ spec:
           value: "postgresql://admin:password123@192.168.49.1:5432/db_notification?schema=public"
         - name: RABBITMQ_URL
           value: "amqp://rabbitmq:5672"
+        # Credenciales para envío real de correos (Nodemailer + Gmail)
+        - name: EMAIL_USER
+          valueFrom:
+            secretKeyRef:
+              name: email-credentials
+              key: email-user
+              optional: true
+        - name: EMAIL_APP_PASS
+          valueFrom:
+            secretKeyRef:
+              name: email-credentials
+              key: email-app-pass
+              optional: true
         livenessProbe:
           exec:
             command: ["node", "-e", "process.exit(0)"]

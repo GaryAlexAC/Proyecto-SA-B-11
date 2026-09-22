@@ -8,16 +8,23 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Este modelo es un ejemplo para el Notification & Audit Service
+// Severidad del evento para clasificación (Proyecto 2)
+enum EventSeverity {
+  INFO
+  WARNING
+  ERROR
+}
+
 model AuditLog {
-  id            Int      @id @default(autoincrement())
-  eventId       String   @unique
+  id            Int           @id @default(autoincrement())
+  eventId       String        @unique
   eventType     String
-  eventVersion  Int      @default(1)
+  eventVersion  Int           @default(1)
   correlationId String
   causationId   String?
   producer      String
   payload       Json
+  severity      EventSeverity @default(INFO)
   occurredAt    DateTime
-  consumedAt    DateTime @default(now())
+  consumedAt    DateTime      @default(now())
 }
