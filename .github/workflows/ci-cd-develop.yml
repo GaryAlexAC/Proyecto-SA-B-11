@@ -50,6 +50,7 @@ jobs:
     name: Docker Build & Push (dev)
     runs-on: ubuntu-latest
     needs: test
+    if: false # TODO: Quitar esto cuando se haga el 'terraform apply' de la Fase B
     steps:
       - uses: actions/checkout@v4
 
