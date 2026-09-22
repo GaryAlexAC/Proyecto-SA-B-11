@@ -1,46 +1,51 @@
-# Distribución Oficial del Trabajo - Bank USAC
+# Distribución Oficial del Trabajo - Bank USAC (Proyecto 2)
 
-Debido a la magnitud técnica del proyecto, el trabajo se ha distribuido de la siguiente manera para balancear la carga equitativamente (considerando la documentación, la complejidad del frontend y el núcleo transaccional).
+Este documento detalla la distribución de tareas para la **Fase 2 (Evolución a Cloud)**. El objetivo es equilibrar la carga integrando CI/CD, infraestructura en la nube y nuevas reglas de negocio.
 
-## 1. Gabriel (Arquitectura, Gateway & Auditoría) - ✅ Completado
-- **Arquitectura Base:** Configuración del monorepo (Turborepo), scripts base.
-- **Infraestructura (Docker):** Orquestación de las 5 bases de datos de PostgreSQL y RabbitMQ.
-- **API Gateway:** Configuración como enrutador inteligente. Ya expone los controladores REST (`/api/customers`, `/api/accounts`, `/api/transactions`, `/api/payments`) y envía los mensajes mediante `ClientProxy.send()` por RabbitMQ con su respectivo `correlationId`.
-- **Notification & Audit Service:** Lógica core terminada (Prisma + RabbitMQ Consumers), ya captura los eventos y simula envío de correos.
+## 1. Gabriel (Infraestructura, DevOps & Notification) - ✅ Completado
+- **Infraestructura Cloud (Terraform):** Creación de VPC, Firewall, Artifact Registry, Cluster GKE Autopilot y aprovisionamiento de VM para PostgreSQL con script automático.
+- **Pipelines CI/CD (GitHub Actions):** Integración continua en `feature/*`, despliegue automatizado a `develop`, versionamiento en `release/*` y rolling update en producción (`main`).
+- **Autoescalado:** Configuración de HPA al 80% de CPU para todos los microservicios en Kubernetes.
+- **Notification Service Extendido:**
+  - Envío real de correos electrónicos implementado con **Nodemailer**.
+  - Clasificación de eventos en Prisma mediante el campo `severity` (`INFO`, `WARNING`, `ERROR`).
+  - Lógica para capturar y notificar los nuevos eventos (`PaymentTimeout`).
 
 ---
 
-## 2. Gary (Frontend & Customer) - ⏳ Pendiente
-**Responsabilidad:** Desarrollo de la interfaz gráfica y la gestión de usuarios/auth.
+## 2. Gary (Frontend, KYC & Documentación C4) - ⏳ Pendiente
+**Responsabilidad:** Extensiones gráficas, servicio al cliente y documentación visual.
 
-**Tareas técnicas:**
+**Tareas Técnicas:**
 1. **Frontend (React + TS):** 
-   - Desarrollar la aplicación web. El diseño debe lucir **Premium** (requisito crítico).
-   - El frontend se comunicará *únicamente* a través de los endpoints del API Gateway (puerto 3000 por defecto).
+   - Nueva interfaz de administración para ver y cambiar el estado KYC de los clientes.
+   - Filtros de estado y fecha en el historial de transacciones.
+   - **Despliegue Obligatorio:** Debe desplegarse en **Google Cloud Run** o en una VM. **Queda terminantemente prohibido usar Amazon S3** (penalización según lineamientos).
 2. **Customer Service (NestJS):**
-   - Para iniciarlo, corre en la raíz: `npx nest generate app customer-service`
-   - Configurar Prisma y conectarlo a la base de datos `db_customer` (puerto 5433).
-   - Funcionalidades: Autenticación (JWT), registro de clientes, validación de identidad.
-   - Debe escuchar comandos desde el API Gateway y emitir eventos como `CustomerRegistered` o `ActivationEmailRequested` al RabbitMQ.
+   - Nuevo modelo/campo `kycStatus` (`PENDING | VERIFIED | REJECTED`).
+   - Emitir evento `KYCStatusUpdated` (gravedad INFO/WARNING dependiendo si fue exitoso o rechazado).
+3. **Documentación Técnica (Fase F):**
+   - Actualizar los **Diagramas C4** (Contexto y Contenedores) en Draw.io y `.md` para reflejar GKE, Artifact Registry y Terraform.
+   - Documentar la arquitectura de despliegue GCP en `deployment.md`.
 
 ---
 
 ## 3. Andrés (Núcleo Financiero Core) - ⏳ Pendiente
-**Responsabilidad:** Implementación de la lógica bancaria y las transferencias distribuidas.
+**Responsabilidad:** Implementación de nuevas reglas bancarias complejas, saldos mínimos y fallos de timeout en la Saga.
 
-**Tareas técnicas:**
+**Tareas Técnicas:**
 1. **Account Service (NestJS):**
-   - Para iniciarlo: `npx nest generate app account-service`
-   - Base de datos: `db_account` (puerto 5434).
-   - Funcionalidades: Gestión de cuentas, bloqueos, consulta de saldo y, lo más importante, el manejo seguro de **Reserva/Liberación de fondos** (vital para evitar inconsistencias de saldos).
+   - Configurar tipo de cuenta (Ahorro/Corriente) y saldo mínimo.
+   - Lógica para bloquear la reserva de fondos si la transferencia viola el saldo mínimo (emitir `MinimumBalanceViolated`).
+   - Configurar "transaction fee" (comisión de transferencia) descontando saldo adicional.
 2. **Transaction Service (NestJS):**
-   - Para iniciarlo: `npx nest generate app transaction-service`
-   - Base de datos: `db_transaction` (puerto 5435).
-   - Funcionalidades: Coordinador de la **Saga Coreográfica** de transferencias bancarias. 
+   - Endpoints para historial filtrado (`?accountId=X&status=Y&from=Z`).
+   - Gestión de estados de transición de transacciones (`PENDING` -> `APPROVED/FAILED`).
+   - Agregar el paso **"Verificación de KYC"** al inicio de la Saga (cancelar al instante si está REJECTED).
 3. **Payment Service (NestJS):**
-   - Para iniciarlo: `npx nest generate app payment-service`
-   - Base de datos: `db_payment` (puerto 5436).
-   - Funcionalidades: Control de pagos internos (es un CRUD pequeño con estados).
+   - Simular intermitencia de servicios externos (Timeouts):
+     - Configurar probabilidades de éxito (70%), rechazo (20%), y **timeout** (10%).
+     - Emitir evento de `PaymentTimeout` para probar la severidad ERROR en la notificación.
 
-> [!NOTE]
-> **Para Andrés y Gary:** Toda la infraestructura ya está servida. Solo necesitan encender su Docker (`docker-compose up -d`), generar su microservicio de Nest, instalar sus librerías de Prisma/RabbitMQ dentro de su respectiva carpeta, y enfocarse 100% en la lógica de negocio usando la documentación oficial.
+> [!IMPORTANT]
+> **Para Andrés y Gary:** Trabajen siempre en sus ramas `feature/` y prueben todo primero. Ahora sus Pull Requests dispararán el Pipeline CI y si fallan las pruebas, no podrán hacer merge. ¡Mucho cuidado y a programar!
