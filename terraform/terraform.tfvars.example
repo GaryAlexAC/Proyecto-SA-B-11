@@ -1,0 +1,5 @@
+# terraform.tfvars — NO COMMITEAR ESTE ARCHIVO (está en .gitignore)
+# Copia este archivo y llena los valores reales:
+#
+# project_id  = "tu-project-id-de-gcp"
+# db_password = "una-contraseña-segura"

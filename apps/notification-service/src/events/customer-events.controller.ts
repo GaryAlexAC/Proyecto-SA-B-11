@@ -1,12 +1,16 @@
 import { Controller, Logger } from '@nestjs/common';
 import { EventPattern, Payload } from '@nestjs/microservices';
 import { AuditService } from '../audit/audit.service.js';
+import { EmailService } from '../email/email.service.js';
 
 @Controller()
 export class CustomerEventsController {
   private readonly logger = new Logger(CustomerEventsController.name);
 
-  constructor(private readonly auditService: AuditService) {}
+  constructor(
+    private readonly auditService: AuditService,
+    private readonly emailService: EmailService,
+  ) {}
 
   @EventPattern('CustomerRegistered')
   async handleCustomerRegistered(@Payload() data: any) {
@@ -21,15 +25,11 @@ export class CustomerEventsController {
     );
     await this.auditService.recordEvent(data, 'customer-service');
 
-    // Simular correo (RF-NOT-01)
     const email = data.payload?.email || 'usuario@banco.com';
     const link = data.payload?.activationLink || 'http://localhost/activar';
 
-    await this.auditService.sendEmailNotification(
-      email,
-      'Activa tu cuenta en Bank USAC',
-      `Haz clic en el siguiente enlace para activar tu cuenta: ${link}`,
-    );
+    // Envío real de correo con Nodemailer (RF-NOT-01)
+    await this.emailService.sendActivationEmail(email, link);
   }
 
   @EventPattern('CustomerActivated')

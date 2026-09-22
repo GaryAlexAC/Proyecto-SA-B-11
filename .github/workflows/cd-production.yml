@@ -1,0 +1,63 @@
+name: CD — Deploy a Producción
+
+# Se dispara SOLO en merge a main
+on:
+  push:
+    branches:
+      - main
+
+env:
+  REGISTRY: ${{ secrets.REGISTRY_URL }}
+  GKE_CLUSTER: ${{ secrets.GKE_CLUSTER_NAME }}
+  GKE_REGION: ${{ secrets.GKE_REGION }}
+
+jobs:
+  deploy-production:
+    name: Rolling Update en Producción
+    runs-on: ubuntu-latest
+    environment: production  # Requiere aprobación manual en GitHub (recomendado)
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Autenticar en GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Conectar a GKE
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER }}
+          location: ${{ env.GKE_REGION }}
+
+      - name: Obtener versión del último release
+        id: get_version
+        run: |
+          # Busca el tag más reciente en el repositorio
+          VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "🏷️  Desplegando versión: $VERSION"
+
+      - name: Crear namespace prod (si no existe)
+        run: kubectl create namespace prod --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Rolling Update en producción
+        run: |
+          VERSION=${{ steps.get_version.outputs.version }}
+          for service in api-gateway account-service customer-service transaction-service payment-service notification-service; do
+            echo "🚀 Actualizando $service a versión $VERSION..."
+            kubectl set image deployment/$service \
+              $service=${{ env.REGISTRY }}/$service:$VERSION \
+              -n prod
+          done
+
+      - name: Verificar rollout exitoso
+        run: |
+          for service in api-gateway account-service customer-service transaction-service payment-service notification-service; do
+            echo "⏳ Verificando rollout de $service..."
+            kubectl rollout status deployment/$service -n prod --timeout=180s
+            echo "✅ $service desplegado correctamente"
+          done
+
+      - name: Mostrar estado final de pods
+        run: kubectl get pods -n prod

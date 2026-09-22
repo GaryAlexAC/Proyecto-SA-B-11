@@ -30,3 +30,10 @@ yarn-error.log*
 # Archivos del sistema operativo
 .DS_Store
 Thumbs.db
+
+# Terraform — NO commitear estado ni credenciales
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/terraform.tfvars
