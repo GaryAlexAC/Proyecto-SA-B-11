@@ -5,6 +5,7 @@ import type {
   Customer,
   CustomerInput,
   CustomerUpdateInput,
+  KycUpdateInput,
   Payment,
   Service,
   Transaction,
@@ -23,6 +24,20 @@ export class ApiError extends Error {
     super(message);
     this.name = "ApiError";
   }
+}
+
+const idempotencyKeys = new Map<string, string>();
+
+function requestIdentity(path: string, init: RequestInit): string | null {
+  if (init.body instanceof FormData) {
+    const entries: Array<[string, string]> = [];
+    for (const [key, value] of init.body.entries()) {
+      if (typeof value === "string") entries.push([key, value]);
+    }
+    entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    return `${init.method ?? "GET"}|${path}|${JSON.stringify(entries)}`;
+  }
+  return `${init.method ?? "GET"}|${path}|${init.body ?? ""}`;
 }
 
 function getAccessToken() {
@@ -61,7 +76,15 @@ async function request<T>(
     const token = getAccessToken();
     if (token) headers.set("Authorization", `Bearer ${token}`);
   }
-  if (options.idempotent) headers.set("Idempotency-Key", crypto.randomUUID());
+  const identity = options.idempotent ? requestIdentity(path, init) : null;
+  if (identity) {
+    let key = idempotencyKeys.get(identity);
+    if (!key) {
+      key = crypto.randomUUID();
+      idempotencyKeys.set(identity, key);
+    }
+    headers.set("Idempotency-Key", key);
+  }
 
   const response = await fetch(`${API_URL}${path}`, { ...init, headers });
   const contentType = response.headers.get("content-type") ?? "";
@@ -75,6 +98,7 @@ async function request<T>(
     }
     throw new ApiError(errorMessage(body), response.status, body);
   }
+  if (identity) idempotencyKeys.delete(identity);
   return body as T;
 }
 
@@ -159,6 +183,14 @@ export const api = {
     );
   },
 
+  updateKycStatus(customerId: string, input: KycUpdateInput) {
+    return request<Customer>(
+      `/api/customers/${encodeURIComponent(customerId)}/kyc-status`,
+      { method: "PATCH", body: jsonBody(input) },
+      { idempotent: true },
+    );
+  },
+
   createAccount(customerId: string, type: AccountType, balance: number) {
     return request<Account>("/api/accounts", {
       method: "POST",
@@ -182,11 +214,16 @@ export const api = {
     sourceAccount: string,
     targetAccount: string,
     amount: number,
+    customerId?: string,
   ) {
-    return request<Transaction>("/api/transactions", {
-      method: "POST",
-      body: jsonBody({ sourceAccount, targetAccount, amount }),
-    });
+    return request<Transaction>(
+      "/api/transactions",
+      {
+        method: "POST",
+        body: jsonBody({ sourceAccount, targetAccount, amount, customerId }),
+      },
+      { idempotent: true },
+    );
   },
 
   getTransaction(transactionId: string) {
@@ -195,20 +232,38 @@ export const api = {
     );
   },
 
-  getTransactions(customerId: string) {
+  getTransactions(
+    customerId: string,
+    filters: {
+      accountId?: string;
+      status?: string;
+      from?: string;
+      to?: string;
+    } = {},
+  ) {
+    const query = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) query.set(key, value);
+    });
+    const suffix = query.size ? `?${query.toString()}` : "";
     return request<Transaction[]>(
-      `/api/transactions/customer/${encodeURIComponent(customerId)}`,
+      `/api/transactions/customer/${encodeURIComponent(customerId)}${suffix}`,
     );
   },
 
   createPayment(input: {
     serviceId: string;
     sourceAccountId: string;
+    customerId?: string;
   }) {
-    return request<Payment>("/api/payments", {
-      method: "POST",
-      body: jsonBody(input),
-    });
+    return request<Payment>(
+      "/api/payments",
+      {
+        method: "POST",
+        body: jsonBody(input),
+      },
+      { idempotent: true },
+    );
   },
 
   getPayment(paymentId: string) {

@@ -1,9 +1,37 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service.js';
-import { TransactionStatus } from '@prisma/client-transaction';
-import { ClientProxy } from '@nestjs/microservices';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ClientProxy, RpcException } from '@nestjs/microservices';
+import {
+  Prisma,
+  TransactionStatus,
+} from '@prisma/client-transaction';
+import { createHash } from 'node:crypto';
 import { firstValueFrom } from 'rxjs';
 import { timeout } from 'rxjs/operators';
+import type { AuthenticatedUser, UserRole } from '../auth/jwt-auth.service.js';
+import { MessagingService } from '../messaging/messaging.service.js';
+import { PrismaService } from '../prisma/prisma.service.js';
+
+interface CreationContext {
+  customerId: string;
+  initiatedBy: string;
+  initiatorRole: UserRole;
+  idempotencyKey?: string;
+}
+
+export interface OutboxEventInput {
+  id: string;
+  eventType: string;
+  correlationId: string;
+  causationId?: string;
+  payload: Record<string, unknown>;
+}
+
+export interface TransactionFilters {
+  accountId?: string;
+  status?: string;
+  from?: string;
+  to?: string;
+}
 
 @Injectable()
 export class TransactionsService {
@@ -12,79 +40,131 @@ export class TransactionsService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject('ACCOUNT_SERVICE') private readonly accountClient: ClientProxy,
-    @Inject('NOTIFICATION_SERVICE')
-    private readonly notificationClient: ClientProxy,
+    private readonly messaging: MessagingService,
   ) {}
 
-  async createTransaction(data: any) {
-    this.logger.log(`Creating transaction...`);
-    const correlationId = data.correlationId;
-
-    const transaction = await this.prisma.transaction.create({
-      data: {
-        correlationId,
-        sourceAccountId: data.sourceAccount,
-        targetAccountId: data.targetAccount,
-        companyId: data.companyId,
-        amount: data.amount,
-        status: TransactionStatus.PENDING,
-      },
-    });
-
-    // 1. Iniciar la Saga enviando el Comando ReserveFunds al Account Service
-    this.accountClient.emit('ReserveFunds', {
-      eventId: crypto.randomUUID(),
-      eventType: 'ReserveFunds',
-      correlationId,
-      producer: 'transaction-service',
-      sourceAccountId: data.sourceAccount,
-      targetAccountId: data.targetAccount,
-      amount: data.amount,
-    });
-
-    // Notify audit trail that the transfer was requested
-    this.notificationClient.emit('TransferRequested', {
-      eventId: crypto.randomUUID(),
-      eventType: 'TransferRequested',
-      correlationId,
-      producer: 'transaction-service',
-      payload: {
-        sourceAccountId: data.sourceAccount,
-        targetAccountId: data.targetAccount,
-        amount: data.amount,
-      },
-    });
-
-    return transaction;
+  createTransaction(data: any, context: CreationContext) {
+    return this.createSagaTransaction(data, context, false);
   }
 
-  async createPaymentTransaction(data: any) {
-    this.logger.log(`Creating payment transaction...`);
-    const transaction = await this.prisma.transaction.create({
-      data: {
-        correlationId: data.correlationId,
-        sourceAccountId: data.sourceAccount,
-        companyId: data.companyId,
-        amount: data.amount,
-        status: TransactionStatus.PENDING,
-      },
-    });
-
-    this.accountClient.emit('ReserveFunds', {
-      eventId: crypto.randomUUID(),
-      eventType: 'ReserveFunds',
-      correlationId: data.correlationId,
-      producer: 'transaction-service',
-      sourceAccountId: data.sourceAccount,
-      targetAccountId: null,
-      amount: data.amount,
-    });
-
-    return transaction;
+  createPaymentTransaction(data: any, context: CreationContext) {
+    return this.createSagaTransaction(data, context, true);
   }
 
-  async getTransaction(id: string) {
-    return this.prisma.transaction.findUnique({ where: { id } });
+  private async createSagaTransaction(
+    data: any,
+    context: CreationContext,
+    payment: boolean,
+  ) {
+    const input = this.validateCreation(data, payment);
+    const operation = payment ? 'PAYMENT' : 'TRANSFER';
+    const requestHash = context.idempotencyKey
+      ? this.fingerprint(
+          input,
+          operation,
+          context.customerId,
+        )
+      : '';
+
+    const replay = context.idempotencyKey
+      ? await this.prisma.transaction.findUnique({
+          where: { idempotencyKey: context.idempotencyKey },
+        })
+      : null;
+    if (replay) return this.assertReplay(replay, operation, requestHash);
+
+    this.logger.log(
+      `Creating ${payment ? 'payment ' : ''}transaction for customer ${context.customerId}`,
+    );
+
+    try {
+      const transaction = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.transaction.create({
+          data: {
+            correlationId: input.correlationId,
+            customerId: context.customerId,
+            initiatedBy: context.initiatedBy,
+            initiatorRole: context.initiatorRole,
+            idempotencyKey: context.idempotencyKey,
+            operation,
+            requestHash: context.idempotencyKey ? requestHash : '',
+            sourceAccountId: input.sourceAccountId,
+            targetAccountId: input.targetAccountId,
+            companyId: input.companyId,
+            amount: input.amount,
+            status: TransactionStatus.PENDING_KYC,
+          },
+        });
+
+        await tx.outboxEvent.create({
+          data: this.messaging.eventData(
+            'KycValidationRequested',
+            input.correlationId,
+            {
+              transactionId: created.id,
+              customerId: context.customerId,
+              initiatedBy: context.initiatedBy,
+              initiatorRole: context.initiatorRole,
+              sourceAccountId: input.sourceAccountId,
+            },
+            { id: `${input.correlationId}:kyc-validation-requested` },
+          ),
+        });
+
+        await tx.outboxEvent.create({
+          data: this.messaging.eventData(
+            'TransferRequested',
+            input.correlationId,
+            {
+              transactionId: created.id,
+              customerId: context.customerId,
+              initiatedBy: context.initiatedBy,
+              initiatorRole: context.initiatorRole,
+              sourceAccountId: input.sourceAccountId,
+              targetAccountId: input.targetAccountId,
+              amount: input.amount,
+              status: TransactionStatus.PENDING_KYC,
+            },
+            { id: `${input.correlationId}:transfer-requested` },
+          ),
+        });
+
+        return created;
+      });
+
+      void this.messaging.flush();
+      return transaction;
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const existing = context.idempotencyKey
+          ? await this.prisma.transaction.findUnique({
+              where: { idempotencyKey: context.idempotencyKey },
+            })
+          : await this.prisma.transaction.findUnique({
+              where: { correlationId: input.correlationId },
+            });
+        if (existing) {
+          return this.assertReplay(existing, operation, requestHash);
+        }
+        throw new RpcException({
+          statusCode: 409,
+          error: 'La transacción ya fue registrada',
+        });
+      }
+      throw error;
+    }
+  }
+
+  async getTransaction(id: string, actor: AuthenticatedUser) {
+    return this.prisma.transaction.findFirst({
+      where: {
+        id,
+        ...(actor.role === 'CLIENT' ? { customerId: actor.customerId } : {}),
+      },
+    });
   }
 
   async getTransactionByCorrelation(correlationId: string) {
@@ -95,6 +175,7 @@ export class TransactionsService {
     customerId: string,
     authorization: string | undefined,
     correlationId: string,
+    filters: TransactionFilters = {},
   ) {
     const accounts = await firstValueFrom(
       this.accountClient
@@ -108,46 +189,107 @@ export class TransactionsService {
     const accountIds = accounts.map((account) => account.id);
     if (!accountIds.length) return [];
 
+    if (filters.accountId && !accountIds.includes(filters.accountId)) return [];
+    const scopedIds = filters.accountId ? [filters.accountId] : accountIds;
+    const where: Prisma.TransactionWhereInput = {
+      OR: [
+        { sourceAccountId: { in: scopedIds } },
+        { targetAccountId: { in: scopedIds } },
+      ],
+    };
+
+    if (filters.status) {
+      if (!Object.values(TransactionStatus).includes(filters.status as TransactionStatus)) {
+        throw new RpcException({ statusCode: 400, error: 'Estado inválido' });
+      }
+      where.status = filters.status as TransactionStatus;
+    }
+
+    const from = this.parseFilterDate(filters.from, false);
+    const to = this.parseFilterDate(filters.to, true);
+    if (from || to) where.createdAt = { gte: from, lte: to };
+
     return this.prisma.transaction.findMany({
-      where: {
-        OR: [
-          { sourceAccountId: { in: accountIds } },
-          { targetAccountId: { in: accountIds } },
-        ],
-      },
+      where,
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  approveKyc(
+    correlationId: string,
+    eventId: string,
+    events: OutboxEventInput[] = [],
+  ) {
+    return this.updateTransactionStatus(
+      correlationId,
+      TransactionStatus.PENDING,
+      eventId,
+      [TransactionStatus.PENDING_KYC],
+      events,
+    );
+  }
+
+  rejectKyc(
+    correlationId: string,
+    reason: string,
+    eventId: string,
+    events: OutboxEventInput[] = [],
+  ) {
+    return this.failTransaction(correlationId, reason, eventId, [
+      TransactionStatus.PENDING_KYC,
+    ], events);
   }
 
   async updateTransactionStatus(
     correlationId: string,
     status: TransactionStatus,
     eventId: string,
+    expectedStatuses: TransactionStatus[] = [
+      TransactionStatus.PENDING,
+      TransactionStatus.PROCESSING,
+      TransactionStatus.COMPENSATING,
+    ],
+    events: OutboxEventInput[] = [],
   ) {
-    return await this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx) => {
       const alreadyProcessed = await tx.processedEvent.findUnique({
         where: { eventId },
       });
       if (alreadyProcessed) return null;
 
-      const updated = await tx.transaction.update({
+      const transaction = await tx.transaction.findUnique({
         where: { correlationId },
+      });
+      if (!transaction) return null;
+
+      const result = await tx.transaction.updateMany({
+        where: {
+          id: transaction.id,
+          status: { in: expectedStatuses },
+        },
         data: { status },
       });
-
       await tx.processedEvent.create({
-        data: { eventId, transactionId: updated.id },
+        data: { eventId, transactionId: transaction.id },
       });
+      if (result.count !== 1) return null;
 
-      return updated;
+      await this.enqueue(tx, events);
+      return tx.transaction.findUniqueOrThrow({ where: { id: transaction.id } });
     });
   }
 
-  async completeTransaction(correlationId: string, eventId: string) {
-    return await this.updateTransactionStatus(
+  completeTransaction(
+    correlationId: string,
+    eventId: string,
+    events: OutboxEventInput[] = [],
+  ) {
+    return this.updateTransactionStatus(
       correlationId,
       TransactionStatus.COMPLETED,
       eventId,
+      [TransactionStatus.PENDING, TransactionStatus.PROCESSING],
+      events,
     );
   }
 
@@ -155,23 +297,148 @@ export class TransactionsService {
     correlationId: string,
     reason: string,
     eventId: string,
+    expectedStatuses: TransactionStatus[] = [
+      TransactionStatus.PENDING_KYC,
+      TransactionStatus.PENDING,
+      TransactionStatus.PROCESSING,
+      TransactionStatus.COMPENSATING,
+    ],
+    events: OutboxEventInput[] = [],
   ) {
-    return await this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx) => {
       const alreadyProcessed = await tx.processedEvent.findUnique({
         where: { eventId },
       });
       if (alreadyProcessed) return null;
 
-      const updated = await tx.transaction.update({
+      const transaction = await tx.transaction.findUnique({
         where: { correlationId },
+      });
+      if (!transaction) return null;
+
+      const result = await tx.transaction.updateMany({
+        where: { id: transaction.id, status: { in: expectedStatuses } },
         data: { status: TransactionStatus.FAILED, failReason: reason },
       });
-
       await tx.processedEvent.create({
-        data: { eventId, transactionId: updated.id },
+        data: { eventId, transactionId: transaction.id },
       });
+      if (result.count !== 1) return null;
 
-      return updated;
+      await this.enqueue(tx, events);
+      return tx.transaction.findUniqueOrThrow({ where: { id: transaction.id } });
     });
+  }
+
+  private async enqueue(
+    tx: Prisma.TransactionClient,
+    events: OutboxEventInput[],
+  ) {
+    for (const event of events) {
+      await tx.outboxEvent.create({
+        data: {
+          id: event.id,
+          eventType: event.eventType,
+          correlationId: event.correlationId,
+          causationId: event.causationId,
+          producer: 'transaction-service',
+          payload: event.payload as Prisma.InputJsonValue,
+        },
+      });
+    }
+  }
+
+  private assertReplay(
+    transaction: { operation: string; requestHash: string },
+    operation: string,
+    requestHash: string,
+  ) {
+    if (transaction.operation !== operation || transaction.requestHash !== requestHash) {
+      throw new RpcException({
+        statusCode: 409,
+        error: 'Idempotency-Key ya fue usada en otra operación',
+      });
+    }
+    return transaction;
+  }
+
+  private fingerprint(
+    input: {
+      correlationId: string;
+      sourceAccountId: string;
+      targetAccountId: string | null;
+      companyId: string | null;
+      amount: number;
+    },
+    operation: string,
+    customerId: string,
+  ) {
+    const canonical = JSON.stringify({
+      operation,
+      customerId,
+      sourceAccountId: input.sourceAccountId,
+      targetAccountId: input.targetAccountId,
+      companyId: input.companyId,
+      amount: String(input.amount),
+    });
+    return createHash('sha256').update(canonical).digest('hex');
+  }
+
+  private validateCreation(data: any, payment: boolean) {
+    const correlationId = this.requiredString(data.correlationId, 'correlationId');
+    const sourceAccountId = this.requiredString(
+      data.sourceAccount,
+      'sourceAccount',
+    );
+    const targetAccountId = payment
+      ? null
+      : this.requiredString(data.targetAccount, 'targetAccount');
+    if (targetAccountId === sourceAccountId) {
+      throw new RpcException({
+        statusCode: 400,
+        error: 'Las cuentas origen y destino deben ser diferentes',
+      });
+    }
+    const amount = Number(data.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new RpcException({
+        statusCode: 400,
+        error: 'El monto debe ser mayor que cero',
+      });
+    }
+    const companyId = payment
+      ? this.requiredString(data.companyId, 'companyId')
+      : null;
+
+    return {
+      correlationId,
+      sourceAccountId,
+      targetAccountId,
+      companyId,
+      amount,
+    };
+  }
+
+  private requiredString(value: unknown, name: string) {
+    if (typeof value !== 'string' || !value.trim()) {
+      throw new RpcException({
+        statusCode: 400,
+        error: `${name} es obligatorio`,
+      });
+    }
+    return value.trim();
+  }
+
+  private parseFilterDate(value: string | undefined, endOfDay: boolean) {
+    if (!value) return undefined;
+    const date = new Date(
+      /^\d{4}-\d{2}-\d{2}$/.test(value)
+        ? `${value}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}Z`
+        : value,
+    );
+    if (Number.isNaN(date.valueOf())) {
+      throw new RpcException({ statusCode: 400, error: 'Fecha inválida' });
+    }
+    return date;
   }
 }

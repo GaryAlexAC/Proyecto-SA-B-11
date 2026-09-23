@@ -43,4 +43,10 @@ export class CustomerEventsController {
     this.logger.log(`Recibido evento CustomerBlocked: ${data.eventId}`);
     await this.auditService.recordEvent(data, 'customer-service');
   }
+
+  @EventPattern('KYCStatusUpdated')
+  async handleKycStatusUpdated(@Payload() data: any) {
+    this.logger.log(`Recibido evento KYCStatusUpdated: ${data.eventId}`);
+    await this.auditService.recordEvent(data, 'customer-service');
+  }
 }

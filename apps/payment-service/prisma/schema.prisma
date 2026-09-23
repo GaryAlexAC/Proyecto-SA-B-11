@@ -12,6 +12,12 @@ model Payment {
   id            String        @id @default(uuid())
   transactionId String
   correlationId String        @unique
+  idempotencyKey String?       @unique
+  requestHash    String?
+  customerId     String?
+  initiatedBy    String?
+  sourceAccountId String?
+  serviceId      String?
   amount        Decimal       @db.Decimal(15, 2)
   status        PaymentStatus @default(PENDING)
   type          PaymentType   @default(INTERNAL)

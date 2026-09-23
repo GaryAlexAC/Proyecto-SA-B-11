@@ -27,7 +27,13 @@ const EVENT_SEVERITY_MAP: Record<string, 'INFO' | 'WARNING' | 'ERROR'> = {
   FundsReleased: 'ERROR',
 };
 
-function resolveSeverity(eventType: string): 'INFO' | 'WARNING' | 'ERROR' {
+function resolveSeverity(
+  eventType: string,
+  payload?: Record<string, unknown>,
+): 'INFO' | 'WARNING' | 'ERROR' {
+  if (eventType === 'KYCStatusUpdated' && payload?.kycStatus === 'REJECTED') {
+    return 'WARNING';
+  }
   return EVENT_SEVERITY_MAP[eventType] ?? 'INFO';
 }
 
@@ -42,7 +48,11 @@ export class AuditService {
       const eventId = eventData.eventId || crypto.randomUUID();
       const eventType = eventData.eventType || 'UnknownEvent';
       const correlationId = eventData.correlationId || 'NoCorrelation';
-      const severity = resolveSeverity(eventType);
+      const payload =
+        eventData.payload && typeof eventData.payload === 'object'
+          ? eventData.payload
+          : {};
+      const severity = resolveSeverity(eventType, payload);
 
       const record = await this.prisma.auditLog.upsert({
         where: { eventId },
@@ -54,7 +64,7 @@ export class AuditService {
           correlationId,
           causationId: eventData.causationId,
           producer,
-          payload: eventData.payload || {},
+          payload,
           severity,
           occurredAt: eventData.occurredAt
             ? new Date(eventData.occurredAt)
@@ -74,7 +84,7 @@ export class AuditService {
     }
   }
 
-  async sendEmailNotification(to: string, subject: string, message: string) {
+  async sendEmailNotification(to: string, subject: string, _message: string) {
     // Este método se mantiene por compatibilidad pero los controllers
     // ahora usan EmailService directamente para envío real de correos.
     this.logger.log(`[Auditoría] Notificación registrada para: ${to} | ${subject}`);

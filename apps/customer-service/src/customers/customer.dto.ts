@@ -2,6 +2,7 @@ import { Transform, Type } from 'class-transformer';
 import {
   IsDateString,
   IsEmail,
+  IsEnum,
   IsInt,
   IsOptional,
   IsString,
@@ -10,6 +11,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+import { KycStatus } from '../generated/prisma/index.js';
 
 const normalizeText = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -92,4 +94,9 @@ export class VersionDto {
   @IsInt()
   @Min(1)
   version: number;
+}
+
+export class UpdateKycStatusDto extends VersionDto {
+  @IsEnum(KycStatus)
+  kycStatus: KycStatus;
 }

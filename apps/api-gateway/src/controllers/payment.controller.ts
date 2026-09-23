@@ -23,11 +23,13 @@ export class PaymentController {
     @Body() data: Record<string, unknown>,
     @Req() request: CorrelatedRequest,
     @Headers('authorization') authorization?: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ) {
     return rpcToHttp(
       this.client.send('create_payment', {
         ...data,
         authorization,
+        idempotencyKey,
         correlationId: request.correlationId,
       }),
       'Payment Service',

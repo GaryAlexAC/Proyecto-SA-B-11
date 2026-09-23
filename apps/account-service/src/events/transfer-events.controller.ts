@@ -1,6 +1,25 @@
-import { Controller, Logger, Inject } from '@nestjs/common';
-import { EventPattern, Payload, ClientProxy } from '@nestjs/microservices';
-import { AccountsService } from '../accounts/accounts.service.js';
+import { Controller, Logger } from '@nestjs/common';
+import { EventPattern, Payload } from '@nestjs/microservices';
+import {
+  AccountCommandResult,
+  AccountsService,
+} from '../accounts/accounts.service.js';
+import { MessagingService } from '../messaging/messaging.service.js';
+
+const RESULT_EVENT_IDS: Record<string, string> = {
+  FundsReserved: 'funds-reserved',
+  FundsReservationRejected: 'funds-reservation-rejected',
+  DestinationCredited: 'destination-credited',
+  DestinationCreditRejected: 'destination-credit-rejected',
+  FundsReleased: 'funds-released',
+};
+
+function flatten(data: any): any {
+  if (data && typeof data.payload === 'object' && data.payload !== null) {
+    return { ...data, ...data.payload };
+  }
+  return data;
+}
 
 @Controller()
 export class TransferEventsController {
@@ -8,139 +27,85 @@ export class TransferEventsController {
 
   constructor(
     private readonly accountsService: AccountsService,
-    @Inject('TRANSACTION_SERVICE')
-    private readonly transactionClient: ClientProxy,
-    @Inject('NOTIFICATION_SERVICE')
-    private readonly notificationClient: ClientProxy,
+    private readonly messaging: MessagingService,
   ) {}
 
   @EventPattern('ReserveFunds')
   async handleReserveFunds(@Payload() data: any) {
+    data = flatten(data);
     this.logger.log(
       `ReserveFunds command received: correlationId=${data.correlationId}`,
     );
 
-    const { sourceAccountId, targetAccountId, amount, correlationId, eventId } = data;
-
-    try {
-      // Paso 1: Intentar reservar fondos (Débito)
-      const result = await this.accountsService.reserveFunds(
-        sourceAccountId,
-        targetAccountId,
-        amount,
-        correlationId,
-        eventId,
-      );
-
-      if (result === null) {
-        this.logger.log(`Event ${eventId} was already processed, skipping.`);
-        return;
-      }
-
-      this.logger.log(`Funds reserved successfully for correlationId=${correlationId}`);
-
-      // Emitir Evento a Transaction Service
-      this.transactionClient.emit('FundsReserved', {
-        eventId: crypto.randomUUID(),
-        correlationId,
-        sourceAccountId,
-        targetAccountId,
-        amount,
-      });
-
-    } catch (error: any) {
-      this.logger.error(`Failed to reserve funds: ${error.message} [corr: ${correlationId}]`);
-      
-      this.transactionClient.emit('FundsReservationRejected', {
-        eventId: crypto.randomUUID(),
-        correlationId,
-        sourceAccountId,
-        targetAccountId,
-        amount,
-        reason: error.message,
-      });
-    }
+    const result = await this.accountsService.reserveFunds(
+      data.sourceAccountId,
+      data.targetAccountId,
+      data.amount,
+      data.correlationId,
+      data.eventId,
+      data.customerId,
+    );
+    await this.publishResult(data, result);
   }
 
   @EventPattern('CreditDestination')
   async handleCreditDestination(@Payload() data: any) {
-    this.logger.log(`CreditDestination command received: correlationId=${data.correlationId}`);
+    data = flatten(data);
+    this.logger.log(
+      `CreditDestination command received: correlationId=${data.correlationId}`,
+    );
 
-    const { sourceAccountId, targetAccountId, amount, correlationId, eventId } = data;
-
-    try {
-      // Paso 2: Intentar abonar fondos (Crédito)
-      const result = await this.accountsService.applyCredit(
-        sourceAccountId,
-        targetAccountId,
-        amount,
-        correlationId,
-        eventId,
-      );
-
-      if (result === null) {
-        this.logger.log(`Event ${eventId} was already processed, skipping.`);
-        return;
-      }
-
-      this.logger.log(`Credit applied successfully for correlationId=${correlationId}`);
-
-      this.transactionClient.emit('DestinationCredited', {
-        eventId: crypto.randomUUID(),
-        correlationId,
-        sourceAccountId,
-        targetAccountId,
-        amount,
-      });
-
-    } catch (error: any) {
-      this.logger.error(`Failed to apply credit: ${error.message} [corr: ${correlationId}]`);
-      
-      this.transactionClient.emit('DestinationCreditRejected', {
-        eventId: crypto.randomUUID(),
-        correlationId,
-        sourceAccountId,
-        targetAccountId,
-        amount,
-        reason: error.message,
-      });
-    }
+    const result = await this.accountsService.applyCredit(
+      data.sourceAccountId,
+      data.targetAccountId,
+      data.amount,
+      data.correlationId,
+      data.eventId,
+    );
+    await this.publishResult(data, result);
   }
 
   @EventPattern('ReleaseFunds')
   async handleReleaseFunds(@Payload() data: any) {
-    this.logger.log(`ReleaseFunds command received - Executing COMPENSATING TRANSACTION (Rollback) for correlationId=${data.correlationId}`);
+    data = flatten(data);
+    this.logger.log(
+      `ReleaseFunds command received for correlationId=${data.correlationId}`,
+    );
 
-    const { sourceAccountId, targetAccountId, amount, correlationId, eventId, reason } = data;
+    const result = await this.accountsService.refundFunds(
+      data.sourceAccountId,
+      data.targetAccountId,
+      data.amount,
+      data.correlationId,
+      data.eventId,
+      data.reason,
+    );
+    await this.publishResult(data, result);
+  }
 
-    try {
-      // Paso 3 (Compensación): Reembolsar fondos al origen
-      const result = await this.accountsService.refundFunds(
-        sourceAccountId,
-        amount,
-        correlationId,
-        eventId,
-      );
-
-      if (result === null) {
-        this.logger.log(`Event ${eventId} was already processed, skipping.`);
-        return;
-      }
-
-      this.logger.log(`Rollback completed successfully for correlationId=${correlationId}`);
-
-      this.transactionClient.emit('FundsReleased', {
-        eventId: crypto.randomUUID(),
-        correlationId,
-        sourceAccountId,
-        targetAccountId,
-        amount,
-        reason,
-      });
-
-    } catch (error: any) {
-      this.logger.error(`CRITICAL: Failed to execute rollback: ${error.message} [corr: ${correlationId}]`);
-      // En un sistema real, aquí entraría un proceso manual de reconciliación.
+  private async publishResult(command: any, result: AccountCommandResult) {
+    const suffix = RESULT_EVENT_IDS[result.eventType];
+    if (!suffix) {
+      throw new Error(`Unsupported account result: ${result.eventType}`);
     }
+
+    if (result.replayed) {
+      this.logger.log(
+        `Replaying ${result.eventType} for command ${command.eventId}`,
+      );
+      await this.messaging.publish(result.eventType, {
+        eventId: `${command.correlationId}:${suffix}`,
+        eventType: result.eventType,
+        eventVersion: 1,
+        occurredAt: new Date().toISOString(),
+        correlationId: command.correlationId,
+        causationId: command.eventId,
+        producer: 'account-service',
+        ...result.payload,
+      });
+      return;
+    }
+
+    void this.messaging.flush();
   }
 }

@@ -1,7 +1,21 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { AccountStatus, AccountType } from '@prisma/client-account';
+import { AccountStatus, AccountType, Prisma } from '@prisma/client-account';
+
+export interface AccountCommandResult {
+  eventType: string;
+  payload: Record<string, unknown>;
+  replayed: boolean;
+}
+
+const RESULT_SUFFIX: Record<string, string> = {
+  FundsReserved: 'funds-reserved',
+  FundsReservationRejected: 'funds-reservation-rejected',
+  DestinationCredited: 'destination-credited',
+  DestinationCreditRejected: 'destination-credit-rejected',
+  FundsReleased: 'funds-released',
+};
 
 @Injectable()
 export class AccountsService {
@@ -41,12 +55,13 @@ export class AccountsService {
   // Paso 1: Reserva de fondos (Débito)
   async reserveFunds(
     sourceAccountId: string,
-    targetAccountId: string,
+    targetAccountId: string | null,
     amount: number,
     correlationId: string,
     eventId: string,
+    customerId: string,
   ) {
-    return await this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx) => {
       const alreadyProcessed = await tx.processedEvent.findUnique({
         where: { eventId },
       });
@@ -54,31 +69,60 @@ export class AccountsService {
         this.logger.log(
           `Event ${eventId} already processed (idempotency check)`,
         );
-        return null;
+        return this.toCommandResult(alreadyProcessed, true);
       }
 
       const sourceAccount = await tx.account.findUnique({
         where: { id: sourceAccountId },
       });
-      if (!sourceAccount) throw new Error('Source account not found');
-      if (sourceAccount.status !== AccountStatus.ACTIVE)
-        throw new Error('Source account is not active');
-      if (Number(sourceAccount.balance) < amount)
-        throw new Error('Insufficient funds');
+      let reason: string | undefined;
+      if (!sourceAccount) reason = 'Source account not found';
+      else if (!customerId || sourceAccount.customerId !== customerId) {
+        reason = 'Source account does not belong to customer';
+      } else if (sourceAccount.status !== AccountStatus.ACTIVE) {
+        reason = 'Source account is not active';
+      } else if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) {
+        reason = 'Amount must be greater than zero';
+      } else if (Number(sourceAccount.balance) < Number(amount)) {
+        reason = 'Insufficient funds';
+      }
 
-      await tx.account.update({
-        where: { id: sourceAccountId },
-        data: { balance: { decrement: amount }, lastActivity: new Date() },
-      });
+      if (!reason) {
+        const updated = await tx.account.updateMany({
+          where: {
+            id: sourceAccountId,
+            customerId,
+            status: AccountStatus.ACTIVE,
+            balance: { gte: amount },
+          },
+          data: { balance: { decrement: amount }, lastActivity: new Date() },
+        });
+        if (updated.count !== 1) {
+          reason = 'Account balance changed; retry the transaction';
+        }
+      }
 
-      await tx.processedEvent.create({
-        data: { eventId, accountId: sourceAccountId },
-      });
-
-      this.logger.log(
-        `Funds reserved: ${amount} from ${sourceAccountId} [corr: ${correlationId}]`,
+      const payload = {
+        sourceAccountId,
+        targetAccountId,
+        amount: Number(amount),
+        correlationId,
+        ...(reason ? { reason } : {}),
+      };
+      const result = await this.recordResult(
+        tx,
+        eventId,
+        sourceAccount?.id,
+        reason ? 'FundsReservationRejected' : 'FundsReserved',
+        payload,
       );
-      return { sourceAccountId, targetAccountId, amount, correlationId };
+
+      if (!reason) {
+        this.logger.log(
+          `Funds reserved: ${amount} from ${sourceAccountId} [corr: ${correlationId}]`,
+        );
+      }
+      return result;
     });
   }
 
@@ -90,62 +134,141 @@ export class AccountsService {
     correlationId: string,
     eventId: string,
   ) {
-    return await this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx) => {
       const alreadyProcessed = await tx.processedEvent.findUnique({
         where: { eventId },
       });
-      if (alreadyProcessed) return null;
+      if (alreadyProcessed) return this.toCommandResult(alreadyProcessed, true);
 
       const targetAccount = await tx.account.findUnique({
         where: { id: targetAccountId },
       });
-      if (!targetAccount) throw new Error('Target account not found');
-      if (targetAccount.status !== AccountStatus.ACTIVE)
-        throw new Error('Target account is not active');
+      let reason: string | undefined;
+      if (!targetAccount) reason = 'Target account not found';
+      else if (targetAccount.status !== AccountStatus.ACTIVE) {
+        reason = 'Target account is not active';
+      } else if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) {
+        reason = 'Amount must be greater than zero';
+      }
 
-      await tx.account.update({
-        where: { id: targetAccountId },
-        data: { balance: { increment: amount }, lastActivity: new Date() },
-      });
+      if (!reason) {
+        await tx.account.update({
+          where: { id: targetAccountId },
+          data: { balance: { increment: amount }, lastActivity: new Date() },
+        });
+      }
 
-      await tx.processedEvent.create({
-        data: { eventId, accountId: targetAccountId },
-      });
-
-      this.logger.log(
-        `Credit applied: ${amount} to ${targetAccountId} [corr: ${correlationId}]`,
+      const payload = {
+        sourceAccountId,
+        targetAccountId,
+        amount: Number(amount),
+        correlationId,
+        ...(reason ? { reason } : {}),
+      };
+      const result = await this.recordResult(
+        tx,
+        eventId,
+        targetAccount?.id,
+        reason ? 'DestinationCreditRejected' : 'DestinationCredited',
+        payload,
       );
-      return { sourceAccountId, targetAccountId, amount, correlationId };
+
+      if (!reason) {
+        this.logger.log(
+          `Credit applied: ${amount} to ${targetAccountId} [corr: ${correlationId}]`,
+        );
+      }
+      return result;
     });
   }
 
   // Paso 3 (Compensación): Reembolso (Rollback del Débito)
   async refundFunds(
     sourceAccountId: string,
+    targetAccountId: string | null,
     amount: number,
     correlationId: string,
     eventId: string,
+    reason?: string,
   ) {
-    return await this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx) => {
       const alreadyProcessed = await tx.processedEvent.findUnique({
         where: { eventId },
       });
-      if (alreadyProcessed) return null;
+      if (alreadyProcessed) return this.toCommandResult(alreadyProcessed, true);
+
+      if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) {
+        throw new Error('Amount must be greater than zero');
+      }
 
       await tx.account.update({
         where: { id: sourceAccountId },
         data: { balance: { increment: amount }, lastActivity: new Date() },
       });
 
-      await tx.processedEvent.create({
-        data: { eventId, accountId: sourceAccountId },
-      });
+      const result = await this.recordResult(
+        tx,
+        eventId,
+        sourceAccountId,
+        'FundsReleased',
+        {
+          sourceAccountId,
+          targetAccountId,
+          amount: Number(amount),
+          correlationId,
+          ...(reason ? { reason } : {}),
+        },
+      );
 
       this.logger.log(
         `Refund applied (Compensating transaction): ${amount} to ${sourceAccountId} [corr: ${correlationId}]`,
       );
-      return { sourceAccountId, amount, correlationId };
+      return result;
     });
+  }
+
+private async recordResult(
+    tx: Prisma.TransactionClient,
+    eventId: string,
+    accountId: string | undefined,
+    resultEventType: string,
+    resultPayload: Record<string, unknown>,
+  ): Promise<AccountCommandResult> {
+    const processed = await tx.processedEvent.create({
+      data: {
+        eventId,
+        accountId,
+        resultEventType,
+        resultPayload: resultPayload as Prisma.InputJsonValue,
+      },
+    });
+    const correlationId = String(resultPayload.correlationId ?? '');
+    const suffix = RESULT_SUFFIX[resultEventType] ?? 'unknown';
+    await tx.outboxEvent.create({
+      data: {
+        id: `${correlationId}:${suffix}`,
+        eventType: resultEventType,
+        correlationId,
+        causationId: eventId,
+        producer: 'account-service',
+        payload: resultPayload as Prisma.InputJsonValue,
+      },
+    });
+    return this.toCommandResult(processed, false);
+  }
+
+  private toCommandResult(
+    processed: {
+      resultEventType: string;
+      resultPayload: Prisma.JsonValue;
+    },
+    replayed: boolean,
+  ): AccountCommandResult {
+    return {
+      eventType: processed.resultEventType,
+      payload: processed.resultPayload as Record<string, unknown>,
+      replayed,
+    };
   }
 
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)

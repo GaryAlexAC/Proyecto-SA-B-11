@@ -1,5 +1,10 @@
 import { Controller } from '@nestjs/common';
-import { MessagePattern, EventPattern, Payload } from '@nestjs/microservices';
+import {
+  EventPattern,
+  MessagePattern,
+  Payload,
+  RpcException,
+} from '@nestjs/microservices';
 import { JwtAuthService } from '../auth/jwt-auth.service.js';
 import { PaymentsService } from './payments.service.js';
 
@@ -17,8 +22,28 @@ export class PaymentsController {
 
   @MessagePattern('create_payment')
   async createPayment(@Payload() data: any) {
-    await this.jwtAuth.authenticate(data.authorization, ['CASHIER', 'CLIENT']);
-    return this.paymentsService.createPayment(data);
+    const actor = await this.jwtAuth.authenticate(data.authorization, [
+      'CASHIER',
+      'CLIENT',
+    ]);
+    const customerId =
+      actor.role === 'CLIENT'
+        ? actor.customerId
+        : typeof data.customerId === 'string'
+          ? data.customerId.trim()
+          : '';
+    if (!customerId) {
+      throw new RpcException({
+        statusCode: 400,
+        error: 'customerId del titular es obligatorio para operaciones de cajero',
+      });
+    }
+    return this.paymentsService.createPayment({
+      ...data,
+      customerId,
+      initiatedBy: actor.customerId,
+      initiatorRole: actor.role,
+    });
   }
 
   @MessagePattern('get_payment')
@@ -33,16 +58,21 @@ export class PaymentsController {
     return this.paymentsService.getServices();
   }
 
-  @EventPattern('PaymentTransactionCompleted')
+@EventPattern('PaymentTransactionCompleted')
   async handlePaymentTransactionCompleted(@Payload() data: any) {
-    return this.paymentsService.completePayment(data.correlationId, data.eventId);
+    return this.paymentsService.completePayment(
+      data.correlationId,
+      data.eventId,
+    );
   }
 
   @EventPattern('PaymentTransactionFailed')
   async handlePaymentTransactionFailed(@Payload() data: any) {
+    const reason =
+      data.payload?.reason ?? data.reason ?? 'No fue posible completar el pago';
     return this.paymentsService.failPayment(
       data.correlationId,
-      data.reason || 'No fue posible completar el pago',
+      reason,
       data.eventId,
     );
   }

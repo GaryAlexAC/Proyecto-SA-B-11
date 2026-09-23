@@ -98,6 +98,25 @@ export class CustomerController {
     );
   }
 
+  @Patch(':id/kyc-status')
+  updateKycStatus(
+    @Param('id') id: string,
+    @Body() kyc: Record<string, unknown>,
+    @Req() request: CorrelatedRequest,
+    @Headers('authorization') authorization?: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return rpcToHttp(
+      this.client.send('update_kyc_status', {
+        id,
+        kyc,
+        authorization,
+        correlationId: request.correlationId,
+        idempotencyKey,
+      }),
+    );
+  }
+
   @Put(':id/identity-document')
   @UseInterceptors(FileInterceptor('identityPhoto', photoOptions))
   updateIdentityDocument(

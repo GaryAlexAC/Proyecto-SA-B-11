@@ -6,6 +6,7 @@ import {
   Inject,
   Param,
   Post,
+  Query,
   Req,
 } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
@@ -23,11 +24,13 @@ export class TransactionController {
     @Body() data: Record<string, unknown>,
     @Req() request: CorrelatedRequest,
     @Headers('authorization') authorization?: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ) {
     return rpcToHttp(
       this.client.send('create_transaction', {
         ...data,
         authorization,
+        idempotencyKey,
         correlationId: request.correlationId,
       }),
       'Transaction Service',
@@ -55,11 +58,19 @@ export class TransactionController {
     @Param('customerId') customerId: string,
     @Req() request: CorrelatedRequest,
     @Headers('authorization') authorization?: string,
+    @Query('accountId') accountId?: string,
+    @Query('status') status?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
   ) {
     return rpcToHttp(
       this.client.send('get_transactions_by_customer', {
         customerId,
         authorization,
+        accountId,
+        status,
+        from,
+        to,
         correlationId: request.correlationId,
       }),
       'Transaction Service',
