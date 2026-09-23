@@ -73,7 +73,7 @@ export class PaymentsService {
       return existing;
     }
 
-    let externalStatus = PaymentStatus.PENDING;
+    let externalStatus: PaymentStatus = PaymentStatus.PENDING;
     let externalReason: string | undefined;
 
     const rand = Math.random();

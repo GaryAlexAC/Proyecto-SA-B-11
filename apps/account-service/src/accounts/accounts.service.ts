@@ -91,7 +91,7 @@ export class AccountsService {
         reason = 'MinimumBalanceViolated';
       }
 
-      if (!reason) {
+      if (!reason && sourceAccount) {
         const totalDeduction = Number(amount) + Number(sourceAccount.transactionFee);
         const updated = await tx.account.updateMany({
           where: {
