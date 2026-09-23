@@ -1,9 +1,15 @@
 export type UserRole = "ADMIN" | "CASHIER" | "CLIENT";
 export type CustomerStatus = "INACTIVE" | "ACTIVE" | "BLOCKED";
+export type KycStatus = "PENDING" | "VERIFIED" | "REJECTED";
 export type AccountType = "MONETARIA" | "AHORRO";
 export type AccountStatus = "ACTIVE" | "INACTIVE" | "BLOCKED";
 export type TransactionStatus =
-  "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "COMPENSATING";
+  | "PENDING_KYC"
+  | "PENDING"
+  | "PROCESSING"
+  | "COMPLETED"
+  | "FAILED"
+  | "COMPENSATING";
 export type PaymentStatus = "PENDING" | "APPROVED" | "REJECTED" | "PROCESSING";
 export type PaymentType = "INTERNAL" | "EXTERNAL";
 export type Money = number | string;
@@ -31,6 +37,7 @@ export interface Customer {
   username: string;
   role: UserRole;
   status: CustomerStatus;
+  kycStatus: KycStatus;
   activatedAt: string | null;
   version: number;
   createdAt: string;
@@ -55,6 +62,11 @@ export interface CustomerUpdateInput {
   address?: string;
 }
 
+export interface KycUpdateInput {
+  version: number;
+  kycStatus: KycStatus;
+}
+
 export interface Account {
   id: string;
   customerId: string;
@@ -69,6 +81,9 @@ export interface Account {
 export interface Transaction {
   id: string;
   correlationId: string;
+  customerId: string;
+  initiatedBy: string;
+  initiatorRole: UserRole | "SYSTEM";
   sourceAccountId: string;
   targetAccountId: string | null;
   amount: Money;

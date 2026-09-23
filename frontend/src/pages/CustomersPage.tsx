@@ -1,7 +1,7 @@
 import { useDeferredValue, useEffect, useState, type FormEvent } from "react";
 import { api } from "../api";
 import { useAuth } from "../auth";
-import type { Customer, CustomerInput } from "../types";
+import type { Customer, CustomerInput, KycStatus } from "../types";
 import {
   Alert,
   Button,
@@ -9,6 +9,7 @@ import {
   Field,
   Icon,
   Loading,
+  SelectField,
   StatusBadge,
   formatDate,
   initials,
@@ -59,7 +60,13 @@ export function CustomersPage() {
   }, []);
 
   const filtered = customers.filter((customer) =>
-    [customer.fullName, customer.document, customer.email, customer.username]
+    [
+      customer.fullName,
+      customer.document,
+      customer.email,
+      customer.username,
+      customer.kycStatus,
+    ]
       .join(" ")
       .toLowerCase()
       .includes(deferredQuery),
@@ -106,7 +113,8 @@ export function CustomersPage() {
           <div className="table-head table-head--people">
             <span>Persona</span>
             <span>Rol</span>
-            <span>Estado</span>
+            <span>Acceso</span>
+            <span>KYC</span>
             <span />
           </div>
           {loading ? (
@@ -130,6 +138,11 @@ export function CustomersPage() {
                   </span>
                   <span>{roleLabel(customer.role)}</span>
                   <StatusBadge status={customer.status} />
+                  {customer.role === "CLIENT" ? (
+                    <StatusBadge status={customer.kycStatus} />
+                  ) : (
+                    <span>—</span>
+                  )}
                   <Icon name="arrow" />
                 </button>
               ))}
@@ -148,6 +161,7 @@ export function CustomersPage() {
               customer={selected}
               canEdit={role === "ADMIN"}
               canBlock={role === "ADMIN"}
+              canManageKyc={role === "ADMIN"}
               onChange={(customer) => {
                 setSelected(customer);
                 setCustomers((current) =>
@@ -342,11 +356,13 @@ function CustomerDetail({
   customer,
   canEdit,
   canBlock,
+  canManageKyc,
   onChange,
 }: {
   customer: Customer;
   canEdit: boolean;
   canBlock: boolean;
+  canManageKyc: boolean;
   onChange: (customer: Customer) => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -354,6 +370,7 @@ function CustomerDetail({
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [kycStatus, setKycStatus] = useState<KycStatus>(customer.kycStatus);
   const [form, setForm] = useState({
     fullName: customer.fullName,
     email: customer.email,
@@ -370,6 +387,7 @@ function CustomerDetail({
     });
     setEditing(false);
     setPhoto(null);
+    setKycStatus(customer.kycStatus);
     setError("");
     setMessage("");
   }, [customer.id]);
@@ -435,6 +453,30 @@ function CustomerDetail({
     }
   }
 
+  async function updateKyc() {
+    if (kycStatus === customer.kycStatus) return;
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      onChange(
+        await api.updateKycStatus(customer.id, {
+          version: customer.version,
+          kycStatus,
+        }),
+      );
+      setMessage("Estado KYC actualizado correctamente");
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "No fue posible actualizar el estado KYC",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="customer-detail">
       <div className="customer-detail__heading">
@@ -445,6 +487,9 @@ function CustomerDetail({
           <span className="overline">{roleLabel(customer.role)}</span>
           <h2>{customer.fullName}</h2>
           <StatusBadge status={customer.status} />
+          {customer.role === "CLIENT" && (
+            <StatusBadge status={customer.kycStatus} />
+          )}
         </div>
       </div>
       {error && <Alert>{error}</Alert>}
@@ -533,7 +578,45 @@ function CustomerDetail({
             <dt>Versión</dt>
             <dd>{customer.version}</dd>
           </div>
+          {customer.role === "CLIENT" && (
+            <div>
+              <dt>Estado KYC</dt>
+              <dd>{customer.kycStatus}</dd>
+            </div>
+          )}
         </dl>
+      )}
+      {customer.role === "CLIENT" && (
+        <div className="kyc-panel">
+          <div>
+            <strong>Validación de identidad (KYC)</strong>
+            <small>
+              Solo clientes verificados pueden iniciar transferencias o pagos.
+            </small>
+          </div>
+          {canManageKyc ? (
+            <>
+              <SelectField
+                label="Nuevo estado"
+                value={kycStatus}
+                onChange={(value) => setKycStatus(value as KycStatus)}
+              >
+                <option value="PENDING">Pendiente</option>
+                <option value="VERIFIED">Verificado</option>
+                <option value="REJECTED">Rechazado</option>
+              </SelectField>
+              <Button
+                variant="secondary"
+                disabled={saving || kycStatus === customer.kycStatus}
+                onClick={() => void updateKyc()}
+              >
+                Actualizar KYC
+              </Button>
+            </>
+          ) : (
+            <StatusBadge status={customer.kycStatus} />
+          )}
+        </div>
       )}
       <div className="document-update">
         <div>

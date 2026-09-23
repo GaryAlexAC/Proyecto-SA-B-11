@@ -6,6 +6,7 @@ import type {
 import type {
   AccountStatus,
   CustomerStatus,
+  KycStatus,
   PaymentStatus,
   TransactionStatus,
   UserRole,
@@ -170,9 +171,16 @@ export function EmptyState({
 export function StatusBadge({
   status,
 }: {
-  status: CustomerStatus | AccountStatus | TransactionStatus | PaymentStatus;
+  status:
+    | CustomerStatus
+    | KycStatus
+    | AccountStatus
+    | TransactionStatus
+    | PaymentStatus;
 }) {
-  const success = ["ACTIVE", "COMPLETED", "APPROVED"].includes(status);
+  const success = ["ACTIVE", "VERIFIED", "COMPLETED", "APPROVED"].includes(
+    status,
+  );
   const danger = ["BLOCKED", "FAILED", "REJECTED"].includes(status);
   return (
     <span
@@ -197,6 +205,8 @@ export function statusLabel(status: string) {
     INACTIVE: "Inactivo",
     BLOCKED: "Bloqueado",
     PENDING: "Pendiente",
+    PENDING_KYC: "Validando KYC",
+    VERIFIED: "Verificado",
     PROCESSING: "Procesando",
     COMPLETED: "Completada",
     FAILED: "Fallida",

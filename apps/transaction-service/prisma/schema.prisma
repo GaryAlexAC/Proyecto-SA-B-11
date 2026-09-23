@@ -11,6 +11,12 @@ datasource db {
 model Transaction {
   id              String            @id @default(uuid())
   correlationId   String            @unique
+  customerId      String
+  initiatedBy     String
+  initiatorRole   String
+  idempotencyKey  String?           @unique
+  operation       String            @default("TRANSFER")
+  requestHash     String            @default("")
   sourceAccountId String
   targetAccountId String?
   companyId       String?
@@ -31,7 +37,26 @@ model ProcessedEvent {
   transaction   Transaction @relation(fields: [transactionId], references: [id])
 }
 
+model OutboxEvent {
+  id            String   @id
+  eventType     String
+  eventVersion  Int      @default(1)
+  occurredAt    DateTime @default(now())
+  correlationId String
+  causationId   String?
+  producer      String   @default("transaction-service")
+  payload       Json
+  attempts      Int      @default(0)
+  nextAttemptAt DateTime @default(now())
+  publishedAt   DateTime?
+  failedAt      DateTime?
+  lastError     String?
+
+  @@index([publishedAt, failedAt, nextAttemptAt])
+}
+
 enum TransactionStatus {
+  PENDING_KYC
   PENDING
   PROCESSING
   COMPLETED

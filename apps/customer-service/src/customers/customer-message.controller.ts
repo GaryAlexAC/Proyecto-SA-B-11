@@ -4,7 +4,12 @@ import {
   ForbiddenException,
   HttpException,
 } from '@nestjs/common';
-import { MessagePattern, Payload, RpcException } from '@nestjs/microservices';
+import {
+  EventPattern,
+  MessagePattern,
+  Payload,
+  RpcException,
+} from '@nestjs/microservices';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { AuthService } from '../auth/auth.service.js';
@@ -12,7 +17,11 @@ import { LoginDto } from '../auth/login.dto.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { CustomerRole } from '../generated/prisma/index.js';
 import { CustomersService } from './customers.service.js';
-import { CreateCashierDto, UpdateCustomerDto } from './customer.dto.js';
+import {
+  CreateCashierDto,
+  UpdateCustomerDto,
+  UpdateKycStatusDto,
+} from './customer.dto.js';
 
 interface AuthorizedMessage {
   authorization: string;
@@ -114,6 +123,53 @@ export class CustomerMessageController {
         this.getCorrelationId(data.correlationId),
         data.idempotencyKey,
       );
+    });
+  }
+
+  @MessagePattern('update_kyc_status')
+  updateKycStatus(
+    @Payload()
+    data: AuthorizedMessage & {
+      id: string;
+      kyc: UpdateKycStatusDto;
+    },
+  ) {
+    return this.execute(async () => {
+      const actor = await this.jwtGuard.authenticate(data.authorization);
+      if (actor.role !== CustomerRole.ADMIN) {
+        throw new ForbiddenException(
+          'Solo un administrador puede actualizar el estado KYC',
+        );
+      }
+      const kyc = await this.validateDto(UpdateKycStatusDto, data.kyc);
+      return this.customersService.updateKycStatus(
+        data.id,
+        kyc,
+        actor,
+        this.getCorrelationId(data.correlationId),
+        data.idempotencyKey,
+      );
+    });
+  }
+
+@EventPattern('KycValidationRequested')
+  validateKyc(@Payload() data: unknown) {
+    return this.execute(() => {
+      type Request = Parameters<CustomersService['validateKyc']>[0];
+      const envelope = data as {
+        eventId?: string;
+        correlationId?: string;
+        payload?: Record<string, unknown>;
+      };
+      const request: Request =
+        envelope && typeof envelope.payload === 'object' && envelope.payload
+          ? ({
+              eventId: envelope.eventId,
+              correlationId: envelope.correlationId,
+              payload: envelope.payload,
+            } as Request)
+          : (data as Request);
+      return this.customersService.validateKyc(request);
     });
   }
 

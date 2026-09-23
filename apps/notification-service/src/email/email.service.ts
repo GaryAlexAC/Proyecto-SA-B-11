@@ -51,7 +51,8 @@ export class EmailService {
       });
       this.logger.log(`✅ Correo enviado a ${to} | MessageId: ${info.messageId}`);
     } catch (error) {
-      this.logger.error(`❌ Error al enviar correo a ${to}: ${error.message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`❌ Error al enviar correo a ${to}: ${message}`);
       // No relanzamos el error para no afectar el flujo principal del microservicio
     }
   }

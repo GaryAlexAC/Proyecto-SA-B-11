@@ -16,6 +16,16 @@ import { MessagingService } from './messaging.service.js';
           persistent: true,
         },
       },
+      {
+        name: 'TRANSACTION_SERVICE',
+        transport: Transport.RMQ,
+        options: {
+          urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
+          queue: 'transaction_queue',
+          queueOptions: { durable: true },
+          persistent: true,
+        },
+      },
     ]),
   ],
   providers: [MessagingService],

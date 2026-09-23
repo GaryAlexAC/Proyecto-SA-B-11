@@ -27,6 +27,7 @@ export function PaymentsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [customerId, setCustomerId] = useState(fixedCustomer);
 
   const selectedService = services.find((service) => service.id === serviceId);
 
@@ -75,6 +76,7 @@ export function PaymentsPage() {
       const payment = await api.createPayment({
         serviceId,
         sourceAccountId: sourceAccountId.trim(),
+        customerId: user.role === "CASHIER" ? customerId.trim() : undefined,
       });
       setResult(payment);
       setLookupId(payment.id);
@@ -144,6 +146,15 @@ export function PaymentsPage() {
               label="Monto a pagar"
               value={formatMoney(selectedService.amount)}
               readOnly
+            />
+          )}
+          {user.role === "CASHIER" && (
+            <Field
+              label="Cliente titular"
+              value={customerId}
+              onChange={(event) => setCustomerId(event.target.value)}
+              placeholder="UUID del cliente"
+              required
             />
           )}
           {user.role === "CLIENT" ? (

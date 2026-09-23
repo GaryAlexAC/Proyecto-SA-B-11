@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../api";
 import { useAuth } from "../auth";
-import type { Account, Transaction } from "../types";
+import type { Account, Transaction, TransactionStatus } from "../types";
 import {
   Alert,
   Button,
@@ -33,6 +33,10 @@ export function TransactionsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [accountFilter, setAccountFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"" | TransactionStatus>("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
 
   async function loadHistory(target = customerId) {
     if (!target.trim()) {
@@ -42,7 +46,14 @@ export function TransactionsPage() {
     setLoading(true);
     setError("");
     try {
-      setTransactions(await api.getTransactions(target.trim()));
+      setTransactions(
+        await api.getTransactions(target.trim(), {
+          accountId: accountFilter.trim() || undefined,
+          status: statusFilter || undefined,
+          from: fromDate || undefined,
+          to: toDate || undefined,
+        }),
+      );
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -86,6 +97,7 @@ export function TransactionsPage() {
         sourceAccount.trim(),
         targetAccount.trim(),
         Number(amount),
+        user.role === "CASHIER" ? customerId.trim() : undefined,
       );
       setTransactions((current) => [created, ...current]);
       setLookupResult(created);
@@ -138,6 +150,15 @@ export function TransactionsPage() {
           <div className="operation-form__number">01</div>
           <span className="overline">Nueva operación</span>
           <h2>Transferir fondos</h2>
+          {user.role === "CASHIER" && (
+            <Field
+              label="Cliente titular"
+              value={customerId}
+              onChange={(event) => setCustomerId(event.target.value)}
+              placeholder="UUID del cliente"
+              required
+            />
+          )}
           {user.role === "CLIENT" ? (
             <SelectField
               label="Cuenta origen"
@@ -227,22 +248,71 @@ export function TransactionsPage() {
             <span className="overline">Historial</span>
             <h2>Transferencias recientes</h2>
           </div>
-          {user.role === "CASHIER" ? (
-            <div className="history-filter">
-              <input
-                value={customerId}
-                onChange={(event) => setCustomerId(event.target.value)}
-                placeholder="UUID del cliente"
-              />
-              <Button variant="quiet" onClick={() => void loadHistory()}>
-                Consultar
-              </Button>
-            </div>
-          ) : (
-            <Button variant="quiet" onClick={() => void loadHistory()}>
-              <Icon name="refresh" /> Actualizar
-            </Button>
+          <Button variant="quiet" onClick={() => void loadHistory()}>
+            <Icon name="refresh" /> Actualizar
+          </Button>
+        </div>
+        <div className="history-filters">
+          {user.role === "CASHIER" && (
+            <Field
+              label="Cliente"
+              value={customerId}
+              onChange={(event) => setCustomerId(event.target.value)}
+              placeholder="UUID del cliente"
+            />
           )}
+          {user.role === "CLIENT" ? (
+            <SelectField
+              label="Cuenta"
+              value={accountFilter}
+              onChange={setAccountFilter}
+            >
+              <option value="">Todas las cuentas</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {`${account.type.toLowerCase()} - ${account.id.slice(0, 8)}…`}
+                </option>
+              ))}
+            </SelectField>
+          ) : (
+            <Field
+              label="Cuenta"
+              value={accountFilter}
+              onChange={(event) => setAccountFilter(event.target.value)}
+              placeholder="Todas o UUID"
+            />
+          )}
+          <SelectField
+            label="Estado"
+            value={statusFilter}
+            onChange={(value) =>
+              setStatusFilter(value as "" | TransactionStatus)
+            }
+          >
+            <option value="">Todos</option>
+            <option value="PENDING_KYC">Validando KYC</option>
+            <option value="PENDING">Pendiente</option>
+            <option value="PROCESSING">Procesando</option>
+            <option value="COMPLETED">Completada</option>
+            <option value="FAILED">Fallida</option>
+            <option value="COMPENSATING">Compensando</option>
+          </SelectField>
+          <Field
+            label="Desde"
+            type="date"
+            value={fromDate}
+            onChange={(event) => setFromDate(event.target.value)}
+          />
+          <Field
+            label="Hasta"
+            type="date"
+            value={toDate}
+            min={fromDate || undefined}
+            onChange={(event) => setToDate(event.target.value)}
+          />
+          <Button variant="secondary" onClick={() => void loadHistory()}>
+            <Icon name="search" /> Filtrar
+          </Button>
         </div>
         {loading ? (
           <Loading />

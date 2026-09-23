@@ -9,6 +9,7 @@ import {
   Customer,
   CustomerRole,
   CustomerStatus,
+  KycStatus,
   Prisma,
 } from '../generated/prisma/index.js';
 import { hash } from 'bcryptjs';
@@ -19,6 +20,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import {
   CreateCashierDto,
   RegisterCustomerDto,
+  UpdateKycStatusDto,
   UpdateCustomerDto,
 } from './customer.dto.js';
 import { validateIdentityPhoto } from './identity-photo.js';
@@ -30,6 +32,18 @@ type PublicCustomer = Omit<
   | 'activationTokenHash'
   | 'activationTokenExpiresAt'
 > & { hasIdentityPhoto: boolean };
+
+interface KycValidationRequested {
+  eventId: string;
+  correlationId: string;
+  payload: {
+    transactionId: string;
+    customerId: string;
+    sourceAccountId: string;
+    initiatedBy?: string;
+    initiatorRole?: string;
+  };
+}
 
 @Injectable()
 export class CustomersService {
@@ -290,6 +304,180 @@ export class CustomersService {
 
     void this.messaging.flush();
     return this.toPublic(updated);
+  }
+
+  async updateKycStatus(
+    id: string,
+    dto: UpdateKycStatusDto,
+    actor: CurrentUser,
+    correlationId: string,
+    idempotencyKey?: string,
+  ) {
+    const replay = await this.findIdempotent(
+      idempotencyKey,
+      'update_kyc_status',
+      id,
+    );
+    if (replay) return this.toPublic(replay);
+
+    try {
+      const updated = await this.prisma.$transaction(async (tx) => {
+        const current = await tx.customer.findUnique({ where: { id } });
+        if (!current || current.role !== CustomerRole.CLIENT) {
+          throw new NotFoundException('Cliente no encontrado');
+        }
+
+        const result = await tx.customer.updateMany({
+          where: { id, version: dto.version, role: CustomerRole.CLIENT },
+          data: {
+            kycStatus: dto.kycStatus,
+            version: { increment: 1 },
+          },
+        });
+        if (result.count !== 1) {
+          throw new ConflictException(
+            'El estado KYC fue modificado por otra solicitud',
+          );
+        }
+
+        if (idempotencyKey) {
+          await tx.idempotencyRecord.create({
+            data: {
+              key: idempotencyKey,
+              operation: 'update_kyc_status',
+              resourceId: id,
+            },
+          });
+        }
+
+        await tx.outboxEvent.create({
+          data: this.messaging.eventData('KYCStatusUpdated', correlationId, {
+            customerId: id,
+            previousStatus: current.kycStatus,
+            kycStatus: dto.kycStatus,
+            updatedBy: actor.customerId,
+            updaterRole: actor.role,
+            severity:
+              dto.kycStatus === KycStatus.REJECTED ? 'WARNING' : 'INFO',
+          }),
+        });
+
+        return tx.customer.findUniqueOrThrow({ where: { id } });
+      });
+
+      void this.messaging.flush();
+      return this.toPublic(updated);
+    } catch (error) {
+      return this.handleWriteError(
+        error,
+        idempotencyKey,
+        'update_kyc_status',
+        id,
+      );
+    }
+  }
+
+  async validateKyc(request: KycValidationRequested) {
+    const { eventId, correlationId, payload } = request;
+    if (
+      !eventId ||
+      !correlationId ||
+      !payload?.transactionId ||
+      !payload.customerId ||
+      !payload.sourceAccountId
+    ) {
+      throw new BadRequestException('Evento KycValidationRequested inválido');
+    }
+
+    const response = await this.prisma.$transaction(async (tx) => {
+      const processed = await tx.processedEvent.findUnique({
+        where: { eventId },
+      });
+      if (processed) return null;
+
+const customer = await tx.customer.findUnique({
+        where: { id: payload.customerId },
+        select: {
+          id: true,
+          role: true,
+          status: true,
+          kycStatus: true,
+        },
+      });
+
+      let reason: string | null = null;
+      if (!customer) {
+        reason = 'CUSTOMER_NOT_FOUND';
+      } else if (customer.role !== CustomerRole.CLIENT) {
+        reason = 'CUSTOMER_NOT_ELIGIBLE';
+      } else if (customer.status !== CustomerStatus.ACTIVE) {
+        reason = 'CUSTOMER_INACTIVE';
+      } else if (customer.kycStatus === KycStatus.REJECTED) {
+        reason = 'KYC_REJECTED';
+      } else if (customer.kycStatus !== KycStatus.VERIFIED) {
+        reason = 'KYC_NOT_VERIFIED';
+      }
+
+      if (!reason) {
+        const initiatorRole = payload.initiatorRole || 'CLIENT';
+        const initiatorId =
+          initiatorRole === 'CLIENT'
+            ? payload.customerId
+            : payload.initiatedBy;
+        let initiatorActive =
+          initiatorRole === 'CLIENT';
+
+        if (initiatorRole === 'CASHIER') {
+          if (!initiatorId) {
+            initiatorActive = false;
+          } else {
+            const initiator = await tx.customer.findUnique({
+              where: { id: initiatorId },
+              select: { role: true, status: true },
+            });
+            initiatorActive =
+              initiator?.role === CustomerRole.CASHIER &&
+              initiator.status === CustomerStatus.ACTIVE;
+          }
+        } else if (initiatorRole !== 'CLIENT') {
+          initiatorActive = false;
+        }
+
+        if (!initiatorActive) reason = 'INITIATOR_NOT_ACTIVE';
+      }
+
+      const approved = reason === null;
+      const eventType = approved
+        ? 'KycValidationApproved'
+        : 'KycValidationRejected';
+      const responseEventId = `${correlationId}:${
+        approved ? 'kyc-validation-approved' : 'kyc-validation-rejected'
+      }`;
+      const kycStatus = customer?.kycStatus ?? 'NOT_FOUND';
+
+      await tx.outboxEvent.create({
+        data: this.messaging.eventData(
+          eventType,
+          correlationId,
+          {
+            transactionId: payload.transactionId,
+            customerId: payload.customerId,
+            sourceAccountId: payload.sourceAccountId,
+            kycStatus,
+            ...(approved ? {} : { reason }),
+          },
+          { id: responseEventId, causationId: eventId },
+        ),
+      });
+      await tx.processedEvent.create({
+        data: { eventId, customerId: payload.customerId },
+      });
+
+      return { approved, kycStatus, reason: approved ? undefined : reason };
+    });
+
+    if (response) void this.messaging.flush();
+    return response;
   }
 
   private async getById(id: string) {

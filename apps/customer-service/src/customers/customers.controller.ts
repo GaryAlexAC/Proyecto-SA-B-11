@@ -23,6 +23,7 @@ import { CurrentUser } from '../common/current-user.js';
 import {
   CreateCashierDto,
   RegisterCustomerDto,
+  UpdateKycStatusDto,
   UpdateCustomerDto,
   VersionDto,
 } from './customer.dto.js';
@@ -134,6 +135,25 @@ export class CustomersController {
     return this.customersService.block(
       id,
       dto.version,
+      correlationId || crypto.randomUUID(),
+      idempotencyKey,
+    );
+  }
+
+  @Patch('customers/:id/kyc-status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(CustomerRole.ADMIN)
+  updateKycStatus(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateKycStatusDto,
+    @Req() request: AuthenticatedRequest,
+    @Headers('x-correlation-id') correlationId?: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.customersService.updateKycStatus(
+      id,
+      dto,
+      request.user,
       correlationId || crypto.randomUUID(),
       idempotencyKey,
     );

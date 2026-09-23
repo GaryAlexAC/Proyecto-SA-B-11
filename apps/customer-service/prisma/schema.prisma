@@ -20,6 +20,12 @@ enum CustomerStatus {
   BLOCKED
 }
 
+enum KycStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
 model Customer {
   id                       String         @id @default(uuid())
   fullName                 String
@@ -33,6 +39,7 @@ model Customer {
   username                 String         @unique
   role                     CustomerRole
   status                   CustomerStatus @default(INACTIVE)
+  kycStatus                KycStatus       @default(PENDING)
   activationTokenHash      String?        @unique
   activationTokenExpiresAt DateTime?
   activatedAt              DateTime?
@@ -66,4 +73,11 @@ model OutboxEvent {
   lastError     String?
 
   @@index([publishedAt, failedAt, nextAttemptAt])
+}
+
+model ProcessedEvent {
+  id          String   @id @default(uuid())
+  eventId     String   @unique
+  customerId  String
+  processedAt DateTime @default(now())
 }

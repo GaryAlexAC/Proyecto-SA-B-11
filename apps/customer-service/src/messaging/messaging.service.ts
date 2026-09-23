@@ -14,7 +14,15 @@ export type CustomerEventType =
   | 'CustomerRegistered'
   | 'ActivationEmailRequested'
   | 'CustomerActivated'
-  | 'CustomerBlocked';
+  | 'CustomerBlocked'
+  | 'KYCStatusUpdated'
+  | 'KycValidationApproved'
+  | 'KycValidationRejected';
+
+interface EventOptions {
+  id?: string;
+  causationId?: string;
+}
 
 @Injectable()
 export class MessagingService implements OnApplicationBootstrap, OnModuleDestroy {
@@ -27,6 +35,8 @@ export class MessagingService implements OnApplicationBootstrap, OnModuleDestroy
     private readonly prisma: PrismaService,
     @Inject('NOTIFICATION_SERVICE')
     private readonly notificationClient: ClientProxy,
+    @Inject('TRANSACTION_SERVICE')
+    private readonly transactionClient: ClientProxy,
   ) {}
 
   onApplicationBootstrap() {
@@ -36,17 +46,23 @@ export class MessagingService implements OnApplicationBootstrap, OnModuleDestroy
 
   async onModuleDestroy() {
     if (this.timer) clearInterval(this.timer);
-    await this.notificationClient.close();
+    await Promise.all([
+      this.notificationClient.close(),
+      this.transactionClient.close(),
+    ]);
   }
 
   eventData(
     eventType: CustomerEventType,
     correlationId: string,
     payload: Record<string, unknown>,
+    options: EventOptions = {},
   ): Prisma.OutboxEventUncheckedCreateInput {
     return {
+      id: options.id,
       eventType,
       correlationId,
+      causationId: options.causationId,
       payload: payload as Prisma.InputJsonValue,
     };
   }
@@ -68,8 +84,11 @@ export class MessagingService implements OnApplicationBootstrap, OnModuleDestroy
 
       for (const event of events) {
         try {
+          const client = this.isTransactionEvent(event.eventType)
+            ? this.transactionClient
+            : this.notificationClient;
           await firstValueFrom(
-            this.notificationClient.emit(event.eventType, {
+            client.emit(event.eventType, {
               eventId: event.id,
               eventType: event.eventType,
               eventVersion: event.eventVersion,
@@ -108,5 +127,12 @@ export class MessagingService implements OnApplicationBootstrap, OnModuleDestroy
     } finally {
       this.flushing = false;
     }
+  }
+
+  private isTransactionEvent(eventType: string) {
+    return (
+      eventType === 'KycValidationApproved' ||
+      eventType === 'KycValidationRejected'
+    );
   }
 }

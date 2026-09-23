@@ -1,8 +1,9 @@
 import { Injectable, Logger, Inject } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { PaymentStatus, PaymentType } from '@prisma/client-payment';
-import { ClientProxy } from '@nestjs/microservices';
-import { firstValueFrom } from 'rxjs';
+import { Prisma, Payment, PaymentStatus, PaymentType } from '@prisma/client-payment';
+import { ClientProxy, RpcException } from '@nestjs/microservices';
+import { firstValueFrom, TimeoutError } from 'rxjs';
 import { timeout } from 'rxjs/operators';
 
 @Injectable()
@@ -18,23 +19,97 @@ export class PaymentsService {
   async createPayment(data: any) {
     this.logger.log(`Creating payment...`);
     const correlationId = data.correlationId;
+    const idempotencyKey =
+      typeof data.idempotencyKey === 'string'
+        ? data.idempotencyKey.trim()
+        : '';
+    if (!idempotencyKey) {
+      throw new RpcException({
+        statusCode: 400,
+        error: 'Idempotency-Key es obligatoria para crear un pago',
+      });
+    }
+    if (idempotencyKey.length > 100) {
+      throw new RpcException({
+        statusCode: 400,
+        error: 'Idempotency-Key no puede superar 100 caracteres',
+      });
+    }
+
     const service = await this.prisma.service.findUnique({
       where: { id: data.serviceId },
       include: { company: true },
     });
-    if (!service) throw new Error('Service not found');
+    if (!service) {
+      throw new RpcException({
+        statusCode: 404,
+        error: 'Service not found',
+      });
+    }
 
-    const payment = await this.prisma.payment.create({
-      data: {
-        correlationId,
-        // The payment is created before the saga starts so it can receive its result.
-        transactionId: correlationId,
-        amount: service.amount,
-        type: PaymentType.EXTERNAL,
-        status: PaymentStatus.PENDING,
-        description: `${service.company.name} - ${service.name}`,
-      },
+    const amount = service.amount.toString();
+    const requestHash = this.fingerprint(
+      data.customerId,
+      data.sourceAccountId,
+      service.id,
+      amount,
+      data.initiatedBy,
+      data.initiatorRole,
+    );
+
+    const existing = await this.prisma.payment.findUnique({
+      where: { idempotencyKey },
     });
+    if (existing) {
+      if (existing.requestHash !== requestHash) {
+        throw new RpcException({
+          statusCode: 409,
+          error: 'Idempotency-Key reutilizada con un payload diferente',
+        });
+      }
+      this.logger.log(
+        `Replay idempotente devuelto para ${correlationId}`,
+      );
+      return existing;
+    }
+
+    let payment: Payment;
+    try {
+      payment = await this.prisma.payment.create({
+        data: {
+          correlationId,
+          // The payment is created before the saga starts so it can receive its result.
+          transactionId: correlationId,
+          amount: service.amount,
+          type: PaymentType.EXTERNAL,
+          status: PaymentStatus.PENDING,
+          description: `${service.company.name} - ${service.name}`,
+          idempotencyKey,
+          requestHash,
+          customerId: data.customerId,
+          initiatedBy: data.initiatedBy,
+          sourceAccountId: data.sourceAccountId,
+          serviceId: service.id,
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const created = await this.prisma.payment.findUnique({
+          where: { idempotencyKey },
+        });
+        if (created && created.requestHash === requestHash) {
+          return created;
+        }
+        throw new RpcException({
+          statusCode: 409,
+          error: 'Idempotency-Key reutilizada con un payload diferente',
+        });
+      }
+      throw error;
+    }
 
     try {
       const transaction = await firstValueFrom(
@@ -45,6 +120,10 @@ export class PaymentsService {
             amount: service.amount,
             authorization: data.authorization,
             correlationId,
+            customerId: data.customerId,
+            initiatedBy: data.initiatedBy,
+            initiatorRole: data.initiatorRole,
+            idempotencyKey,
           })
           .pipe(timeout(8_000)),
       );
@@ -54,12 +133,51 @@ export class PaymentsService {
         data: { transactionId: transaction.id },
       });
     } catch (error) {
-      const reason = error instanceof Error ? error.message : 'Transaction service unavailable';
+      if (error instanceof TimeoutError) {
+        this.logger.warn(
+          `Timeout aguardando la saga de ${correlationId}; queda en PENDING para reconciliación`,
+        );
+        return this.prisma.payment.update({
+          where: { id: payment.id },
+          data: { failReason: 'Timeout aguardando la saga de pago' },
+        });
+      }
+      const statusCode =
+        typeof (error as any)?.error?.statusCode === 'number'
+          ? (error as any).error.statusCode
+          : undefined;
+      const reason =
+        error instanceof Error ? error.message : 'Transaction service unavailable';
       return this.prisma.payment.update({
         where: { id: payment.id },
-        data: { status: PaymentStatus.REJECTED, failReason: reason },
+        data: {
+          status:
+            statusCode !== undefined && statusCode >= 400 && statusCode < 500
+              ? PaymentStatus.REJECTED
+              : PaymentStatus.PENDING,
+          failReason: reason,
+        },
       });
     }
+  }
+
+  private fingerprint(
+    customerId: string,
+    sourceAccountId: string | undefined,
+    serviceId: string,
+    amount: string,
+    initiatedBy: string,
+    initiatorRole: string,
+  ) {
+    const canonical = JSON.stringify({
+      customerId,
+      sourceAccountId: sourceAccountId ?? '',
+      serviceId,
+      amount,
+      initiatedBy,
+      initiatorRole,
+    });
+    return createHash('sha256').update(canonical).digest('hex');
   }
 
   async getPayment(id: string) {
