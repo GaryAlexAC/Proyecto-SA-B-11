@@ -270,7 +270,7 @@ export class TransactionsService {
   ) {
     return this.updateTransactionStatus(
       correlationId,
-      TransactionStatus.COMPLETED,
+      TransactionStatus.APPROVED,
       eventId,
       [TransactionStatus.PENDING, TransactionStatus.PROCESSING],
       events,
