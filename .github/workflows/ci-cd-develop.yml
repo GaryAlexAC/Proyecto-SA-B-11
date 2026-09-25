@@ -8,13 +8,10 @@ on:
 
 env:
   REGISTRY: ${{ secrets.REGISTRY_URL }}
-  GKE_CLUSTER: ${{ secrets.GKE_CLUSTER_NAME }}
-  GKE_REGION: ${{ secrets.GKE_REGION }}
+  AKS_CLUSTER: ${{ secrets.AKS_CLUSTER_NAME }}
+  AZURE_RG: ${{ secrets.AZURE_RG }}
 
 jobs:
-  # ──────────────────────────────────────
-  # JOB 0: Detect Changes
-  # ──────────────────────────────────────
   changes:
     name: Detect Changes
     runs-on: ubuntu-latest
@@ -25,6 +22,7 @@ jobs:
       transaction-service: ${{ steps.filter.outputs.transaction-service }}
       payment-service: ${{ steps.filter.outputs.payment-service }}
       notification-service: ${{ steps.filter.outputs.notification-service }}
+      frontend: ${{ steps.filter.outputs.frontend }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -37,10 +35,8 @@ jobs:
             transaction-service: 'apps/transaction-service/**'
             payment-service: 'apps/payment-service/**'
             notification-service: 'apps/notification-service/**'
+            frontend: 'frontend/**'
 
-  # ──────────────────────────────────────
-  # JOB 1: Build
-  # ──────────────────────────────────────
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -52,10 +48,9 @@ jobs:
           cache: "npm"
       - run: npm ci
       - run: npm run build --workspaces --if-present
+      - name: Build frontend
+        run: cd frontend && npm ci && npm run build
 
-  # ──────────────────────────────────────
-  # JOB 2: Test
-  # ──────────────────────────────────────
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -69,24 +64,25 @@ jobs:
       - run: npm ci
       - run: npm run test --workspaces --if-present
 
-  # ──────────────────────────────────────
-  # JOB 3: Docker Build + Push a Artifact Registry
-  # ──────────────────────────────────────
   docker-build-push:
     name: Docker Build & Push (dev)
     runs-on: ubuntu-latest
     needs: [test, changes]
-    if: false # TODO: Quitar esto cuando se haga el 'terraform apply' de la Fase B
+    if: false # TODO: Quitar esto cuando se haga el 'terraform apply'
     steps:
       - uses: actions/checkout@v4
 
-      - name: Autenticar en GCP
-        uses: google-github-actions/auth@v2
+      - name: Azure Login
+        uses: azure/login@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Configurar Docker para Artifact Registry
-        run: gcloud auth configure-docker ${{ secrets.GKE_REGION }}-docker.pkg.dev --quiet
+      - name: ACR Login
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
 
       - name: Build y Push — api-gateway
         if: needs.changes.outputs.api-gateway == 'true'
@@ -130,26 +126,30 @@ jobs:
           docker build -t $IMAGE -f apps/notification-service/Dockerfile .
           docker push $IMAGE
 
-  # ──────────────────────────────────────
-  # JOB 4: Deploy a namespace 'dev' en GKE
-  # ──────────────────────────────────────
+      - name: Build y Push — frontend
+        if: needs.changes.outputs.frontend == 'true'
+        run: |
+          IMAGE=${{ env.REGISTRY }}/frontend:dev-${{ github.sha }}
+          docker build -t $IMAGE -f frontend/Dockerfile ./frontend
+          docker push $IMAGE
+
   deploy-dev:
-    name: Deploy to GKE (dev)
+    name: Deploy to AKS (dev)
     runs-on: ubuntu-latest
     needs: [docker-build-push, changes]
     steps:
       - uses: actions/checkout@v4
 
-      - name: Autenticar en GCP
-        uses: google-github-actions/auth@v2
+      - name: Azure Login
+        uses: azure/login@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Conectar a GKE
-        uses: google-github-actions/get-gke-credentials@v2
+      - name: AKS Set Context
+        uses: azure/aks-set-context@v3
         with:
-          cluster_name: ${{ env.GKE_CLUSTER }}
-          location: ${{ env.GKE_REGION }}
+          resource-group: ${{ env.AZURE_RG }}
+          cluster-name: ${{ env.AKS_CLUSTER }}
 
       - name: Crear namespace dev (si no existe)
         run: kubectl create namespace dev --dry-run=client -o yaml | kubectl apply -f -
@@ -163,6 +163,7 @@ jobs:
           C_TRA: ${{ needs.changes.outputs.transaction-service }}
           C_PAY: ${{ needs.changes.outputs.payment-service }}
           C_NOT: ${{ needs.changes.outputs.notification-service }}
+          C_FRO: ${{ needs.changes.outputs.frontend }}
         run: |
           SERVICES=""
           [ "$C_API" == "true" ] && SERVICES="$SERVICES api-gateway"
@@ -171,12 +172,13 @@ jobs:
           [ "$C_TRA" == "true" ] && SERVICES="$SERVICES transaction-service"
           [ "$C_PAY" == "true" ] && SERVICES="$SERVICES payment-service"
           [ "$C_NOT" == "true" ] && SERVICES="$SERVICES notification-service"
+          [ "$C_FRO" == "true" ] && SERVICES="$SERVICES frontend"
           echo "SERVICES=$SERVICES" >> $GITHUB_ENV
 
       - name: Deploy microservicios modificados en namespace dev
         run: |
           if [ -z "$SERVICES" ]; then
-            echo "No hay servicios backend modificados para desplegar."
+            echo "No hay servicios modificados para desplegar."
             exit 0
           fi
           for service in $SERVICES; do

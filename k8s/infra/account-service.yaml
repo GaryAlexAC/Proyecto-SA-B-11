@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: account-service
-        image: bank-usac/account-service:latest
+        image: bank-usac/account-service:v1.0.0
         imagePullPolicy: Never
         env:
         - name: DATABASE_URL

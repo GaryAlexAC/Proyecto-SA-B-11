@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: payment-service
-        image: bank-usac/payment-service:latest
+        image: bank-usac/payment-service:v1.0.0
         imagePullPolicy: Never
         env:
         - name: DATABASE_URL

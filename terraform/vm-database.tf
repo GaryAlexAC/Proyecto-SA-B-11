@@ -1,37 +1,51 @@
-# ============================================================
-# Compute Engine VM — Base de datos PostgreSQL
-# ============================================================
-resource "google_compute_instance" "database" {
-  name         = "bank-usac-db"
-  machine_type = "e2-medium"
-  zone         = var.zone
-  tags         = ["bank-usac-db"]
+resource "azurerm_public_ip" "db_pip" {
+  name                = "bank-usac-db-pip"
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
+  allocation_method   = "Dynamic"
+}
 
-  boot_disk {
-    initialize_params {
-      image = "ubuntu-os-cloud/ubuntu-2204-lts"
-      size  = 30 # GB
-      type  = "pd-standard"
-    }
+resource "azurerm_network_interface" "db_nic" {
+  name                = "bank-usac-db-nic"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = azurerm_subnet.db.id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.db_pip.id
+  }
+}
+
+resource "azurerm_linux_virtual_machine" "database" {
+  name                = "bank-usac-db"
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
+  size                = "Standard_B2s"
+  admin_username      = var.db_admin_user
+  admin_password      = var.db_password
+  disable_password_authentication = false
+
+  network_interface_ids = [
+    azurerm_network_interface.db_nic.id,
+  ]
+
+  os_disk {
+    name                 = "bank-usac-db-osdisk"
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
   }
 
-  network_interface {
-    network    = google_compute_network.main.id
-    subnetwork = google_compute_subnetwork.db.id
-
-    # IP pública temporal para la instalación inicial
-    # En producción real se eliminaría y se usaría IAP o VPN
-    access_config {}
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
   }
 
-  metadata = {
-    startup-script = templatefile("${path.module}/scripts/setup-postgres.sh", {
-      DB_PASSWORD   = var.db_password
-      DB_ADMIN_USER = var.db_admin_user
-    })
-  }
-
-  lifecycle {
-    prevent_destroy = false
-  }
+  custom_data = base64encode(templatefile("${path.module}/scripts/setup-postgres.sh", {
+    DB_PASSWORD   = var.db_password
+    DB_ADMIN_USER = var.db_admin_user
+  }))
 }
