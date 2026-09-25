@@ -7,7 +7,7 @@ variable "resource_group_name" {
 variable "location" {
   description = "Azure Region"
   type        = string
-  default     = "East US"
+  default     = "East US 2"
 }
 
 variable "db_password" {
