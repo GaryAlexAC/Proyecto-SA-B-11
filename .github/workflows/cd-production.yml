@@ -15,11 +15,9 @@ jobs:
   deploy-production:
     name: Rolling Update en Producción
     runs-on: ubuntu-latest
-    environment: production # Requiere aprobación manual en GitHub (recomendado)
+    environment: production  # Requiere aprobación manual en GitHub (recomendado)
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Autenticar en GCP
         uses: google-github-actions/auth@v2
@@ -60,21 +58,6 @@ jobs:
             kubectl rollout status deployment/$service -n prod --timeout=180s
             echo "✅ $service desplegado correctamente"
           done
-
-      - name: Deploy frontend to Cloud Run
-        run: |
-          VERSION=${{ steps.get_version.outputs.version }}
-          gcloud run deploy bank-usac-frontend-prod \
-            --image ${{ env.REGISTRY }}/frontend:$VERSION \
-            --region ${{ env.GKE_REGION }} \
-            --port 8080 \
-            --allow-unauthenticated \
-            --quiet
-          SERVICE_URL=$(gcloud run services describe bank-usac-frontend-prod \
-            --region ${{ env.GKE_REGION }} \
-            --format='value(status.url)')
-          curl --fail --silent --show-error "$SERVICE_URL" >/dev/null
-          echo "Frontend available at $SERVICE_URL"
 
       - name: Mostrar estado final de pods
         run: kubectl get pods -n prod

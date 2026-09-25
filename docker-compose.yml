@@ -176,12 +176,10 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
-      args:
-        VITE_API_GATEWAY_URL: ${VITE_API_GATEWAY_URL:-http://localhost:3000}
     image: bank-usac/frontend:latest
     restart: unless-stopped
     ports:
-      - "5173:8080"
+      - "5173:80"
     depends_on:
       api-gateway:
         condition: service_healthy

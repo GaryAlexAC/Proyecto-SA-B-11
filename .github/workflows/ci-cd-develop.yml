@@ -44,69 +44,7 @@ jobs:
       - run: npm run test --workspaces --if-present
 
   # ──────────────────────────────────────
-  # JOB 3: Frontend Cloud Run (dev)
-  # ──────────────────────────────────────
-  deploy-frontend:
-    name: Deploy Frontend to Cloud Run (dev)
-    runs-on: ubuntu-latest
-    needs: test
-    env:
-      SERVICE_NAME: bank-usac-frontend-dev
-      API_GATEWAY_URL: ${{ vars.API_GATEWAY_URL_DEV }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Validate frontend deployment configuration
-        shell: bash
-        run: |
-          if [[ ! "$API_GATEWAY_URL" =~ ^https:// ]]; then
-            echo "Configure API_GATEWAY_URL_DEV with the public HTTPS URL of the development API Gateway."
-            exit 1
-          fi
-          if [[ -z "$REGISTRY" || -z "$GKE_REGION" ]]; then
-            echo "Configure REGISTRY_URL and GKE_REGION secrets."
-            exit 1
-          fi
-
-      - name: Authenticate in GCP
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Set up Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker "${GKE_REGION}-docker.pkg.dev" --quiet
-
-      - name: Build and push versioned frontend image
-        env:
-          IMAGE: ${{ env.REGISTRY }}/frontend:dev-${{ github.sha }}
-        run: |
-          docker build \
-            --build-arg "VITE_API_GATEWAY_URL=$API_GATEWAY_URL" \
-            --tag "$IMAGE" \
-            --file frontend/Dockerfile .
-          docker push "$IMAGE"
-
-      - name: Deploy frontend to Cloud Run
-        env:
-          IMAGE: ${{ env.REGISTRY }}/frontend:dev-${{ github.sha }}
-        run: |
-          gcloud run deploy "$SERVICE_NAME" \
-            --image "$IMAGE" \
-            --region "$GKE_REGION" \
-            --port 8080 \
-            --allow-unauthenticated \
-            --quiet
-          SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" \
-            --region "$GKE_REGION" \
-            --format='value(status.url)')
-          curl --fail --silent --show-error "$SERVICE_URL" >/dev/null
-          echo "Frontend available at $SERVICE_URL"
-
-  # ──────────────────────────────────────
-  # JOB 4: Docker Build + Push a Artifact Registry
+  # JOB 3: Docker Build + Push a Artifact Registry
   # ──────────────────────────────────────
   docker-build-push:
     name: Docker Build & Push (dev)
@@ -161,7 +99,7 @@ jobs:
           docker push $IMAGE
 
   # ──────────────────────────────────────
-  # JOB 5: Deploy a namespace 'dev' en GKE
+  # JOB 4: Deploy a namespace 'dev' en GKE
   # ──────────────────────────────────────
   deploy-dev:
     name: Deploy to GKE (dev)
