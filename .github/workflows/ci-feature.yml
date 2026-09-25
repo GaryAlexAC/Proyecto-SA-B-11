@@ -35,7 +35,7 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    needs: build  # Solo corre si build fue exitoso
+    needs: build # Solo corre si build fue exitoso
     steps:
       - name: Checkout código
         uses: actions/checkout@v4
@@ -58,7 +58,7 @@ jobs:
   validate:
     name: Validate
     runs-on: ubuntu-latest
-    needs: test  # Solo corre si test fue exitoso
+    needs: test # Solo corre si test fue exitoso
     steps:
       - name: Checkout código
         uses: actions/checkout@v4
@@ -84,3 +84,5 @@ jobs:
             fi
             echo "✅ apps/$service/Dockerfile encontrado"
           done
+          test -f frontend/Dockerfile
+          echo "✅ frontend/Dockerfile encontrado"
