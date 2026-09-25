@@ -19,6 +19,7 @@ export function TransactionsPage() {
   const { session } = useAuth();
   const user = session!.user;
   const fixedCustomer = user.role === "CLIENT" ? user.customerId : "";
+  const isOperator = user.role === "CASHIER" || user.role === "ADMIN";
   const [customerId, setCustomerId] = useState(fixedCustomer);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -97,7 +98,9 @@ export function TransactionsPage() {
         sourceAccount.trim(),
         targetAccount.trim(),
         Number(amount),
-        user.role === "CASHIER" ? customerId.trim() : undefined,
+        user.role === "CASHIER" || user.role === "ADMIN"
+          ? customerId.trim()
+          : undefined,
       );
       setTransactions((current) => [created, ...current]);
       setLookupResult(created);
@@ -150,7 +153,7 @@ export function TransactionsPage() {
           <div className="operation-form__number">01</div>
           <span className="overline">Nueva operación</span>
           <h2>Transferir fondos</h2>
-          {user.role === "CASHIER" && (
+          {isOperator && (
             <Field
               label="Cliente titular"
               value={customerId}
@@ -253,7 +256,7 @@ export function TransactionsPage() {
           </Button>
         </div>
         <div className="history-filters">
-          {user.role === "CASHIER" && (
+          {isOperator && (
             <Field
               label="Cliente"
               value={customerId}
@@ -293,7 +296,7 @@ export function TransactionsPage() {
             <option value="PENDING_KYC">Validando KYC</option>
             <option value="PENDING">Pendiente</option>
             <option value="PROCESSING">Procesando</option>
-            <option value="COMPLETED">Completada</option>
+            <option value="APPROVED">Aprobada</option>
             <option value="FAILED">Fallida</option>
             <option value="COMPENSATING">Compensando</option>
           </SelectField>

@@ -1347,6 +1347,20 @@ p {
   width: 14px;
   height: 14px;
 }
+.bank-card__rules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.58rem;
+}
+.bank-card--saving .bank-card__rules {
+  border-top-color: rgba(16, 42, 67, 0.12);
+  color: rgba(16, 42, 67, 0.6);
+}
 .bank-card__number {
   position: absolute;
   right: 19px;

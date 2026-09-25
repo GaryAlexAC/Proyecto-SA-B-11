@@ -18,6 +18,7 @@ export function PaymentsPage() {
   const { session } = useAuth();
   const user = session!.user;
   const fixedCustomer = user.role === "CLIENT" ? user.customerId : "";
+  const isOperator = user.role === "CASHIER" || user.role === "ADMIN";
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [serviceId, setServiceId] = useState("");
@@ -76,7 +77,7 @@ export function PaymentsPage() {
       const payment = await api.createPayment({
         serviceId,
         sourceAccountId: sourceAccountId.trim(),
-        customerId: user.role === "CASHIER" ? customerId.trim() : undefined,
+        customerId: isOperator ? customerId.trim() : undefined,
       });
       setResult(payment);
       setLookupId(payment.id);
@@ -148,7 +149,7 @@ export function PaymentsPage() {
               readOnly
             />
           )}
-          {user.role === "CASHIER" && (
+          {isOperator && (
             <Field
               label="Cliente titular"
               value={customerId}

@@ -49,13 +49,13 @@ const navigation: NavigationItem[] = [
     id: "transactions",
     label: "Transferencias",
     icon: "transfer",
-    roles: ["CASHIER", "CLIENT"],
+    roles: ["ADMIN", "CASHIER", "CLIENT"],
   },
   {
     id: "payments",
     label: "Pagos",
     icon: "payment",
-    roles: ["CASHIER", "CLIENT"],
+    roles: ["ADMIN", "CASHIER", "CLIENT"],
   },
   {
     id: "profile",

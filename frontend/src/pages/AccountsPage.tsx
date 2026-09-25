@@ -19,6 +19,7 @@ export function AccountsPage() {
   const { session } = useAuth();
   const user = session!.user;
   const fixedCustomer = user.role === "CLIENT" ? user.customerId : "";
+  const isOperator = user.role === "CASHIER" || user.role === "ADMIN";
   const [customerId, setCustomerId] = useState(fixedCustomer);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [balances, setBalances] = useState<Record<string, string>>({});
@@ -125,7 +126,7 @@ export function AccountsPage() {
       )}
 
       <section
-        className={`account-layout ${user.role === "CASHIER" ? "" : "account-layout--single"}`}
+        className={`account-layout ${isOperator ? "" : "account-layout--single"}`}
       >
         <div className="account-list-section">
           <div className="section-heading">
@@ -169,6 +170,16 @@ export function AccountsPage() {
                       Actualizar saldo <Icon name="refresh" />
                     </button>
                   </div>
+                  {Number(account.minimumBalance) > 0 && (
+                    <div className="bank-card__rules">
+                      <span>
+                        Saldo mínimo {formatMoney(account.minimumBalance)}
+                      </span>
+                      {Number(account.transactionFee) > 0 && (
+                        <span>Comisión {formatMoney(account.transactionFee)}</span>
+                      )}
+                    </div>
+                  )}
                   <span className="bank-card__number">0{index + 1}</span>
                 </article>
               ))}
@@ -187,7 +198,7 @@ export function AccountsPage() {
           )}
         </div>
 
-        {user.role === "CASHIER" && (
+        {isOperator && (
           <form className="content-card compact-form" onSubmit={createAccount}>
             <span className="overline">Apertura</span>
             <h2>Nueva cuenta</h2>
