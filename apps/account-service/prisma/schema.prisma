@@ -9,14 +9,16 @@ datasource db {
 }
 
 model Account {
-  id           String        @id @default(uuid())
-  customerId   String
-  type         AccountType   @default(MONETARIA)
-  balance      Decimal       @db.Decimal(15, 2)
-  status       AccountStatus @default(ACTIVE)
-  lastActivity DateTime      @default(now())
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id             String        @id @default(uuid())
+  customerId     String
+  type           AccountType   @default(MONETARIA)
+  balance        Decimal       @db.Decimal(15, 2)
+  minimumBalance Decimal       @default(0) @db.Decimal(15, 2)
+  transactionFee Decimal       @default(0) @db.Decimal(15, 2)
+  status         AccountStatus @default(ACTIVE)
+  lastActivity   DateTime      @default(now())
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   processedEvents ProcessedEvent[]
 }

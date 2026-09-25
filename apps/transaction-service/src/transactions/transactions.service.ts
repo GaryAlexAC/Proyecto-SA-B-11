@@ -111,23 +111,7 @@ export class TransactionsService {
           ),
         });
 
-        await tx.outboxEvent.create({
-          data: this.messaging.eventData(
-            'TransferRequested',
-            input.correlationId,
-            {
-              transactionId: created.id,
-              customerId: context.customerId,
-              initiatedBy: context.initiatedBy,
-              initiatorRole: context.initiatorRole,
-              sourceAccountId: input.sourceAccountId,
-              targetAccountId: input.targetAccountId,
-              amount: input.amount,
-              status: TransactionStatus.PENDING_KYC,
-            },
-            { id: `${input.correlationId}:transfer-requested` },
-          ),
-        });
+
 
         return created;
       });
@@ -286,7 +270,7 @@ export class TransactionsService {
   ) {
     return this.updateTransactionStatus(
       correlationId,
-      TransactionStatus.COMPLETED,
+      TransactionStatus.APPROVED,
       eventId,
       [TransactionStatus.PENDING, TransactionStatus.PROCESSING],
       events,

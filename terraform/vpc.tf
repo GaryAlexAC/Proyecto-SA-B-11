@@ -1,33 +1,25 @@
-# ============================================================
-# VPC Network
-# ============================================================
-resource "google_compute_network" "main" {
-  name                    = "bank-usac-vpc"
-  auto_create_subnetworks = false
+resource "azurerm_resource_group" "rg" {
+  name     = var.resource_group_name
+  location = var.location
 }
 
-# Subnet para los pods de GKE
-resource "google_compute_subnetwork" "gke" {
-  name          = "bank-usac-gke-subnet"
-  ip_cidr_range = "10.0.0.0/20"
-  region        = var.region
-  network       = google_compute_network.main.id
-
-  secondary_ip_range {
-    range_name    = "gke-pods"
-    ip_cidr_range = "10.4.0.0/14"
-  }
-
-  secondary_ip_range {
-    range_name    = "gke-services"
-    ip_cidr_range = "10.8.0.0/20"
-  }
+resource "azurerm_virtual_network" "main" {
+  name                = "bank-usac-vnet"
+  address_space       = ["10.0.0.0/16"]
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
 }
 
-# Subnet para la VM de base de datos
-resource "google_compute_subnetwork" "db" {
-  name          = "bank-usac-db-subnet"
-  ip_cidr_range = "10.1.0.0/24"
-  region        = var.region
-  network       = google_compute_network.main.id
+resource "azurerm_subnet" "aks" {
+  name                 = "bank-usac-aks-subnet"
+  resource_group_name  = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.main.name
+  address_prefixes     = ["10.0.1.0/24"]
+}
+
+resource "azurerm_subnet" "db" {
+  name                 = "bank-usac-db-subnet"
+  resource_group_name  = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.main.name
+  address_prefixes     = ["10.0.2.0/24"]
 }

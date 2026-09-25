@@ -1,18 +1,13 @@
-variable "project_id" {
-  description = "GCP Project ID"
+variable "resource_group_name" {
+  description = "Azure Resource Group"
   type        = string
+  default     = "BankUsacRG"
 }
 
-variable "region" {
-  description = "GCP Region"
+variable "location" {
+  description = "Azure Region"
   type        = string
-  default     = "us-central1"
-}
-
-variable "zone" {
-  description = "GCP Zone"
-  type        = string
-  default     = "us-central1-a"
+  default     = "East US 2"
 }
 
 variable "db_password" {
@@ -24,7 +19,7 @@ variable "db_password" {
 variable "db_admin_user" {
   description = "PostgreSQL admin username"
   type        = string
-  default     = "admin"
+  default     = "bankadmin"
 }
 
 variable "environment" {

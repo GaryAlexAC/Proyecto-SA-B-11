@@ -8,8 +8,8 @@ on:
 
 env:
   REGISTRY: ${{ secrets.REGISTRY_URL }}
-  GKE_CLUSTER: ${{ secrets.GKE_CLUSTER_NAME }}
-  GKE_REGION: ${{ secrets.GKE_REGION }}
+  AKS_CLUSTER: ${{ secrets.AKS_CLUSTER_NAME }}
+  AZURE_RG: ${{ secrets.AZURE_RG }}
 
 jobs:
   deploy-production:
@@ -19,16 +19,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Autenticar en GCP
-        uses: google-github-actions/auth@v2
+      - name: Azure Login
+        uses: azure/login@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Conectar a GKE
-        uses: google-github-actions/get-gke-credentials@v2
+      - name: AKS Set Context
+        uses: azure/aks-set-context@v3
         with:
-          cluster_name: ${{ env.GKE_CLUSTER }}
-          location: ${{ env.GKE_REGION }}
+          resource-group: ${{ env.AZURE_RG }}
+          cluster-name: ${{ env.AKS_CLUSTER }}
 
       - name: Obtener versión del último release
         id: get_version
@@ -44,7 +44,7 @@ jobs:
       - name: Rolling Update en producción
         run: |
           VERSION=${{ steps.get_version.outputs.version }}
-          for service in api-gateway account-service customer-service transaction-service payment-service notification-service; do
+          for service in api-gateway account-service customer-service transaction-service payment-service notification-service frontend; do
             echo "🚀 Actualizando $service a versión $VERSION..."
             kubectl set image deployment/$service \
               $service=${{ env.REGISTRY }}/$service:$VERSION \
@@ -53,7 +53,7 @@ jobs:
 
       - name: Verificar rollout exitoso
         run: |
-          for service in api-gateway account-service customer-service transaction-service payment-service notification-service; do
+          for service in api-gateway account-service customer-service transaction-service payment-service notification-service frontend; do
             echo "⏳ Verificando rollout de $service..."
             kubectl rollout status deployment/$service -n prod --timeout=180s
             echo "✅ $service desplegado correctamente"

@@ -73,6 +73,30 @@ export class PaymentsService {
       return existing;
     }
 
+    let externalStatus: PaymentStatus = PaymentStatus.PENDING;
+    let externalReason: string | undefined;
+
+    const rand = Math.random();
+    if (rand < 0.10) {
+      this.logger.error(`Simulated external timeout for payment ${correlationId}`);
+      this.transactionClient.emit('PaymentTimeout', {
+        eventId: `${correlationId}:timeout`,
+        correlationId,
+        eventType: 'PaymentTimeout',
+        payload: {
+           transactionId: correlationId,
+           reason: 'External service timeout simulated',
+           severity: 'ERROR',
+        }
+      });
+      externalStatus = PaymentStatus.REJECTED;
+      externalReason = 'Timeout de servicio externo simulado';
+    } else if (rand < 0.30) {
+      this.logger.warn(`Simulated external rejection for payment ${correlationId}`);
+      externalStatus = PaymentStatus.REJECTED;
+      externalReason = 'Rechazo de servicio externo simulado';
+    }
+
     let payment: Payment;
     try {
       payment = await this.prisma.payment.create({
@@ -82,7 +106,8 @@ export class PaymentsService {
           transactionId: correlationId,
           amount: service.amount,
           type: PaymentType.EXTERNAL,
-          status: PaymentStatus.PENDING,
+          status: externalStatus,
+          failReason: externalReason || null,
           description: `${service.company.name} - ${service.name}`,
           idempotencyKey,
           requestHash,
@@ -109,6 +134,10 @@ export class PaymentsService {
         });
       }
       throw error;
+    }
+
+    if (externalStatus === PaymentStatus.REJECTED) {
+      return payment;
     }
 
     try {

@@ -25,6 +25,7 @@ export class PaymentsController {
     const actor = await this.jwtAuth.authenticate(data.authorization, [
       'CASHIER',
       'CLIENT',
+      'ADMIN'
     ]);
     const customerId =
       actor.role === 'CLIENT'
@@ -48,13 +49,13 @@ export class PaymentsController {
 
   @MessagePattern('get_payment')
   async getPayment(@Payload() data: AuthorizedMessage & { id: string }) {
-    await this.jwtAuth.authenticate(data.authorization, ['CASHIER', 'CLIENT']);
+    await this.jwtAuth.authenticate(data.authorization, ['CASHIER', 'CLIENT', 'ADMIN']);
     return this.paymentsService.getPayment(data.id);
   }
 
   @MessagePattern('get_services')
   async getServices(@Payload() data: AuthorizedMessage) {
-    await this.jwtAuth.authenticate(data.authorization, ['CASHIER', 'CLIENT']);
+    await this.jwtAuth.authenticate(data.authorization, ['CASHIER', 'CLIENT', 'ADMIN']);
     return this.paymentsService.getServices();
   }
 

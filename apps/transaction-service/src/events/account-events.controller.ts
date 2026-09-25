@@ -48,7 +48,7 @@ export class AccountEventsController {
               customerId: transaction.customerId,
               sourceAccountId: transaction.sourceAccountId,
               amount: Number(transaction.amount),
-              status: 'COMPLETED',
+              status: 'APPROVED',
             },
           },
           {
@@ -136,7 +136,7 @@ export class AccountEventsController {
             sourceAccountId: transaction.sourceAccountId,
             targetAccountId: transaction.targetAccountId,
             amount: Number(transaction.amount),
-            status: 'COMPLETED',
+            status: 'APPROVED',
           },
         },
       ],
