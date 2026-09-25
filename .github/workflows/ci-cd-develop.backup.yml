@@ -1,0 +1,138 @@
+name: CI+CD — Develop Branch
+
+# Se dispara en push/merge a develop
+on:
+  push:
+    branches:
+      - develop
+
+env:
+  REGISTRY: ${{ secrets.REGISTRY_URL }}
+  GKE_CLUSTER: ${{ secrets.GKE_CLUSTER_NAME }}
+  GKE_REGION: ${{ secrets.GKE_REGION }}
+
+jobs:
+  # ──────────────────────────────────────
+  # JOB 1: Build
+  # ──────────────────────────────────────
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      - run: npm run build --workspaces --if-present
+
+  # ──────────────────────────────────────
+  # JOB 2: Test
+  # ──────────────────────────────────────
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      - run: npm run test --workspaces --if-present
+
+  # ──────────────────────────────────────
+  # JOB 3: Docker Build + Push a Artifact Registry
+  # ──────────────────────────────────────
+  docker-build-push:
+    name: Docker Build & Push (dev)
+    runs-on: ubuntu-latest
+    needs: test
+    if: false # TODO: Quitar esto cuando se haga el 'terraform apply' de la Fase B
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Autenticar en GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Configurar Docker para Artifact Registry
+        run: gcloud auth configure-docker ${{ secrets.GKE_REGION }}-docker.pkg.dev --quiet
+
+      - name: Build y Push — api-gateway
+        run: |
+          IMAGE=${{ env.REGISTRY }}/api-gateway:dev-${{ github.sha }}
+          docker build -t $IMAGE -f apps/api-gateway/Dockerfile .
+          docker push $IMAGE
+
+      - name: Build y Push — account-service
+        run: |
+          IMAGE=${{ env.REGISTRY }}/account-service:dev-${{ github.sha }}
+          docker build -t $IMAGE -f apps/account-service/Dockerfile .
+          docker push $IMAGE
+
+      - name: Build y Push — customer-service
+        run: |
+          IMAGE=${{ env.REGISTRY }}/customer-service:dev-${{ github.sha }}
+          docker build -t $IMAGE -f apps/customer-service/Dockerfile .
+          docker push $IMAGE
+
+      - name: Build y Push — transaction-service
+        run: |
+          IMAGE=${{ env.REGISTRY }}/transaction-service:dev-${{ github.sha }}
+          docker build -t $IMAGE -f apps/transaction-service/Dockerfile .
+          docker push $IMAGE
+
+      - name: Build y Push — payment-service
+        run: |
+          IMAGE=${{ env.REGISTRY }}/payment-service:dev-${{ github.sha }}
+          docker build -t $IMAGE -f apps/payment-service/Dockerfile .
+          docker push $IMAGE
+
+      - name: Build y Push — notification-service
+        run: |
+          IMAGE=${{ env.REGISTRY }}/notification-service:dev-${{ github.sha }}
+          docker build -t $IMAGE -f apps/notification-service/Dockerfile .
+          docker push $IMAGE
+
+  # ──────────────────────────────────────
+  # JOB 4: Deploy a namespace 'dev' en GKE
+  # ──────────────────────────────────────
+  deploy-dev:
+    name: Deploy to GKE (dev)
+    runs-on: ubuntu-latest
+    needs: docker-build-push
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Autenticar en GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Conectar a GKE
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER }}
+          location: ${{ env.GKE_REGION }}
+
+      - name: Crear namespace dev (si no existe)
+        run: kubectl create namespace dev --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy microservicios en namespace dev
+        run: |
+          for service in api-gateway account-service customer-service transaction-service payment-service notification-service; do
+            kubectl set image deployment/$service \
+              $service=${{ env.REGISTRY }}/$service:dev-${{ github.sha }} \
+              -n dev --record || \
+            kubectl apply -f k8s/infra/${service}.yaml -n dev
+          done
+
+      - name: Verificar rollout
+        run: |
+          for service in api-gateway account-service customer-service transaction-service payment-service notification-service; do
+            kubectl rollout status deployment/$service -n dev --timeout=120s
+          done

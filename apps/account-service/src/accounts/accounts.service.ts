@@ -30,6 +30,8 @@ export class AccountsService {
         customerId: data.customerId,
         type: data.type || AccountType.MONETARIA,
         balance: data.balance || 0,
+        minimumBalance: (data.type || AccountType.MONETARIA) === AccountType.AHORRO ? 200 : 0,
+        transactionFee: (data.type || AccountType.MONETARIA) === AccountType.AHORRO ? 5 : 0,
         status: AccountStatus.ACTIVE,
       },
     });
@@ -83,19 +85,22 @@ export class AccountsService {
         reason = 'Source account is not active';
       } else if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) {
         reason = 'Amount must be greater than zero';
-      } else if (Number(sourceAccount.balance) < Number(amount)) {
-        reason = 'Insufficient funds';
+      } else if (Number(sourceAccount.balance) < Number(amount) + Number(sourceAccount.transactionFee)) {
+        reason = 'Insufficient funds including transaction fee';
+      } else if (Number(sourceAccount.balance) - (Number(amount) + Number(sourceAccount.transactionFee)) < Number(sourceAccount.minimumBalance)) {
+        reason = 'MinimumBalanceViolated';
       }
 
-      if (!reason) {
+      if (!reason && sourceAccount) {
+        const totalDeduction = Number(amount) + Number(sourceAccount.transactionFee);
         const updated = await tx.account.updateMany({
           where: {
             id: sourceAccountId,
             customerId,
             status: AccountStatus.ACTIVE,
-            balance: { gte: amount },
+            balance: { gte: totalDeduction },
           },
-          data: { balance: { decrement: amount }, lastActivity: new Date() },
+          data: { balance: { decrement: totalDeduction }, lastActivity: new Date() },
         });
         if (updated.count !== 1) {
           reason = 'Account balance changed; retry the transaction';

@@ -439,6 +439,18 @@ const customer = await tx.customer.findUnique({
               initiator?.role === CustomerRole.CASHIER &&
               initiator.status === CustomerStatus.ACTIVE;
           }
+        } else if (initiatorRole === 'ADMIN') {
+          if (!initiatorId) {
+            initiatorActive = false;
+          } else {
+            const initiator = await tx.customer.findUnique({
+              where: { id: initiatorId },
+              select: { role: true, status: true },
+            });
+            initiatorActive =
+              initiator?.role === CustomerRole.ADMIN &&
+              initiator.status === CustomerStatus.ACTIVE;
+          }
         } else if (initiatorRole !== 'CLIENT') {
           initiatorActive = false;
         }

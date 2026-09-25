@@ -24,6 +24,6 @@ const rmqClient = (name: string, queue: string) => ({
     ]),
   ],
   providers: [MessagingService],
-  exports: [MessagingService],
+  exports: [MessagingService, ClientsModule],
 })
 export class MessagingModule {}

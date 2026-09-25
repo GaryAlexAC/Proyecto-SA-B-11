@@ -23,6 +23,7 @@ export class TransactionsController {
     const actor = await this.jwtAuth.authenticate(data.authorization, [
       'CASHIER',
       'CLIENT',
+      'ADMIN'
     ]);
     return this.transactionsService.createTransaction(
       data,
@@ -47,6 +48,7 @@ export class TransactionsController {
     const actor = await this.jwtAuth.authenticate(data.authorization, [
       'CASHIER',
       'CLIENT',
+      'ADMIN'
     ]);
     return this.transactionsService.getTransaction(data.id, actor);
   }
@@ -66,6 +68,7 @@ export class TransactionsController {
     const actor = await this.jwtAuth.authenticate(data.authorization, [
       'CASHIER',
       'CLIENT',
+      'ADMIN'
     ]);
     this.jwtAuth.assertCustomerAccess(actor, data.customerId);
     return this.transactionsService.getTransactionsByCustomer(

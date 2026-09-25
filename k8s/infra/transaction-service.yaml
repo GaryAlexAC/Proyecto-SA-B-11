@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: transaction-service
-        image: bank-usac/transaction-service:latest
+        image: bank-usac/transaction-service:v1.0.0
         imagePullPolicy: Never
         env:
         - name: DATABASE_URL

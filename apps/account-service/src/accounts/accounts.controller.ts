@@ -17,7 +17,7 @@ export class AccountsController {
 
   @MessagePattern('create_account')
   async createAccount(@Payload() data: any) {
-    await this.jwtAuth.authenticate(data.authorization, ['CASHIER']);
+    await this.jwtAuth.authenticate(data.authorization, ['CASHIER', 'ADMIN']);
     return this.accountsService.createAccount(data);
   }
 
