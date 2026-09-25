@@ -19,7 +19,7 @@ variable "db_password" {
 variable "db_admin_user" {
   description = "PostgreSQL admin username"
   type        = string
-  default     = "admin"
+  default     = "bankadmin"
 }
 
 variable "environment" {
