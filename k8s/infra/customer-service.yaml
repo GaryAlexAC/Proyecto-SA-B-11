@@ -32,7 +32,7 @@ spec:
         - name: JWT_EXPIRES_IN
           value: "1h"
         - name: ACTIVATION_URL_BASE
-          value: "http://localhost:8080/"
+          value: "http://9.169.131.155/"
         - name: ACTIVATION_TOKEN_TTL_HOURS
           value: "24"
         - name: ADMIN_USERNAME

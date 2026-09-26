@@ -41,11 +41,28 @@ jobs:
       - name: Crear namespace prod (si no existe)
         run: kubectl create namespace prod --dry-run=client -o yaml | kubectl apply -f -
 
+      - name: Desplegar infraestructura base (RabbitMQ)
+        run: kubectl apply -f k8s/infra/rabbitmq-deployment.yaml -n prod
+
       - name: Rolling Update en producción
         run: |
           VERSION=${{ steps.get_version.outputs.version }}
+          
+          # Crear copias temporales de los manifiestos para prod
+          mkdir -p k8s/prod-infra
+          cp k8s/infra/*.yaml k8s/prod-infra/
+          
+          # Separar la base de datos de 'dev' reemplazando el esquema public por prod
+          # y evitar que el frontend de prod apunte al backend de dev o viceversa
+          sed -i 's/schema=public/schema=prod/g' k8s/prod-infra/*.yaml
+          
           for service in api-gateway account-service customer-service transaction-service payment-service notification-service frontend; do
             echo "🚀 Actualizando $service a versión $VERSION..."
+            
+            # 1. Aplicar la infraestructura (crea el servicio/deployment si no existe)
+            kubectl apply -f k8s/prod-infra/${service}.yaml -n prod
+            
+            # 2. Actualizar la imagen a la nueva versión
             kubectl set image deployment/$service \
               $service=${{ env.REGISTRY }}/$service:$VERSION \
               -n prod
@@ -55,7 +72,7 @@ jobs:
         run: |
           for service in api-gateway account-service customer-service transaction-service payment-service notification-service frontend; do
             echo "⏳ Verificando rollout de $service..."
-            kubectl rollout status deployment/$service -n prod --timeout=180s
+            kubectl rollout status deployment/$service -n prod --timeout=300s
             echo "✅ $service desplegado correctamente"
           done
 
