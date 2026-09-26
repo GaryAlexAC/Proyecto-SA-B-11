@@ -192,5 +192,5 @@ jobs:
         run: |
           if [ -z "$SERVICES" ]; then exit 0; fi
           for service in $SERVICES; do
-            kubectl rollout status deployment/$service -n dev --timeout=120s
+            kubectl rollout status deployment/$service -n dev --timeout=300s
           done
