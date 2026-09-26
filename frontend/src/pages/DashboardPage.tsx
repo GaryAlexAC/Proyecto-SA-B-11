@@ -261,7 +261,7 @@ export function DashboardPage({
               <div className="section-heading">
                 <div>
                   <span className="overline">Auditoría</span>
-                  <h2>Log Global de Transacciones</h2>
+                  <h2>Historial Global de Transacciones</h2>
                 </div>
               </div>
               
