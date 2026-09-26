@@ -3,7 +3,7 @@ resource "azurerm_kubernetes_cluster" "main" {
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   dns_prefix          = "bankusac"
-
+  oidc_issuer_enabled = true
   default_node_pool {
     name       = "default"
     node_count = 1
