@@ -182,10 +182,10 @@ jobs:
           fi
           for service in $SERVICES; do
             echo "Desplegando $service..."
+            kubectl apply -f k8s/infra/${service}.yaml -n dev
             kubectl set image deployment/$service \
               $service=${{ env.REGISTRY }}/$service:dev-${{ github.sha }} \
-              -n dev --record || \
-            kubectl apply -f k8s/infra/${service}.yaml -n dev
+              -n dev
           done
 
       - name: Verificar rollout
