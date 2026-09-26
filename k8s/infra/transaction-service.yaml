@@ -18,7 +18,7 @@ spec:
         imagePullPolicy: Never
         env:
         - name: DATABASE_URL
-          value: "postgresql://admin:password123@192.168.49.1:5432/db_transaction?schema=public"
+          value: "postgresql://bankadmin:SA_Grupo11@10.0.2.4:5432/db_transaction?schema=public"
         - name: RABBITMQ_URL
           value: "amqp://rabbitmq:5672"
         - name: JWT_SECRET
