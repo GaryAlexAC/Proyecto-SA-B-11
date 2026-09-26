@@ -15,7 +15,7 @@ spec:
       containers:
       - name: account-service
         image: bank-usac/account-service:v1.0.0
-        imagePullPolicy: Never
+        imagePullPolicy: Always
         env:
         - name: DATABASE_URL
           value: "postgresql://bankadmin:SA_Grupo11@10.0.2.4:5432/db_account?schema=public"

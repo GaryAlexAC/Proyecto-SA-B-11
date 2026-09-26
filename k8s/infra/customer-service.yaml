@@ -17,7 +17,7 @@ spec:
       containers:
       - name: customer-service
         image: bank-usac/customer-service:v1.0.0
-        imagePullPolicy: Never
+        imagePullPolicy: Always
         ports:
         - containerPort: 3000
         env:
