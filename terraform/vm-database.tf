@@ -23,7 +23,7 @@ resource "azurerm_linux_virtual_machine" "database" {
   name                = "bank-usac-db"
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
-  size                = "Standard_B1s"
+  size                = "Standard_D2as_v7"
   admin_username      = var.db_admin_user
   admin_password      = var.db_password
   disable_password_authentication = false
@@ -41,7 +41,7 @@ resource "azurerm_linux_virtual_machine" "database" {
   source_image_reference {
     publisher = "Canonical"
     offer     = "0001-com-ubuntu-server-jammy"
-    sku       = "22_04-lts"
+    sku       = "22_04-lts-gen2"
     version   = "latest"
   }
 

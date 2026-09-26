@@ -17,7 +17,7 @@ spec:
       containers:
       - name: frontend
         image: bank-usac/frontend:v1.0.0
-        imagePullPolicy: Never
+        imagePullPolicy: Always
         ports:
         - containerPort: 80
 ---

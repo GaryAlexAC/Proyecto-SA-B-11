@@ -15,10 +15,10 @@ spec:
       containers:
       - name: payment-service
         image: bank-usac/payment-service:v1.0.0
-        imagePullPolicy: Never
+        imagePullPolicy: Always
         env:
         - name: DATABASE_URL
-          value: "postgresql://admin:password123@192.168.49.1:5432/db_payment?schema=public"
+          value: "postgresql://bankadmin:SA_Grupo11@10.0.2.4:5432/db_payment?schema=public"
         - name: RABBITMQ_URL
           value: "amqp://rabbitmq:5672"
         - name: JWT_SECRET
