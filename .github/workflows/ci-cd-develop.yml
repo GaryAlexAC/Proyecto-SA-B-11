@@ -153,6 +153,9 @@ jobs:
       - name: Crear namespace dev (si no existe)
         run: kubectl create namespace dev --dry-run=client -o yaml | kubectl apply -f -
 
+      - name: Desplegar infraestructura base (RabbitMQ)
+        run: kubectl apply -f k8s/infra/rabbitmq-deployment.yaml -n dev
+
       - name: Construir lista de servicios modificados
         id: modified-services
         env:
