@@ -61,6 +61,9 @@ jobs:
           # Cambiar el nodePort del api-gateway-external para evitar colisión con dev (30000)
           sed -i 's/nodePort: 30000/nodePort: 30001/g' k8s/prod-infra/api-gateway.yaml
           
+          # Cambiar la URL de activación de correos de dev a prod
+          sed -i 's|http://9.169.131.155/|http://130.213.247.56/|g' k8s/prod-infra/customer-service.yaml
+          
           # Pre-inyectar la imagen real del ACR en los YAMLs ANTES de aplicar
           # Esto evita que los pods intenten jalar la imagen placeholder durante el rolling update
           for service in api-gateway account-service customer-service transaction-service payment-service notification-service frontend; do
