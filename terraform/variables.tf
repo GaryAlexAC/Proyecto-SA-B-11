@@ -1,7 +1,7 @@
 variable "resource_group_name" {
   description = "Azure Resource Group"
   type        = string
-  default     = "BankUsacRG"
+  default     = "BankUsacRG_Fase2"
 }
 
 variable "location" {
