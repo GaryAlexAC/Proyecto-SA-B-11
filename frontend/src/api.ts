@@ -61,13 +61,25 @@ function errorMessage(value: unknown): string {
   return "No fue posible completar la operación";
 }
 
+function generateUUID(): string {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) =>
+    (
+      Number(c) ^
+      (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (Number(c) / 4)))
+    ).toString(16)
+  );
+}
+
 async function request<T>(
   path: string,
   init: RequestInit = {},
   options: { authenticated?: boolean; idempotent?: boolean } = {},
 ): Promise<T> {
   const headers = new Headers(init.headers);
-  headers.set("X-Correlation-Id", crypto.randomUUID());
+  headers.set("X-Correlation-Id", generateUUID());
 
   if (!(init.body instanceof FormData) && init.body !== undefined) {
     headers.set("Content-Type", "application/json");
@@ -80,7 +92,7 @@ async function request<T>(
   if (identity) {
     let key = idempotencyKeys.get(identity);
     if (!key) {
-      key = crypto.randomUUID();
+      key = generateUUID();
       idempotencyKeys.set(identity, key);
     }
     headers.set("Idempotency-Key", key);
