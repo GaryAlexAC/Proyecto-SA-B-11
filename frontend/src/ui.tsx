@@ -38,7 +38,7 @@ export function Brand({ compact = false }: { compact?: boolean }) {
         <span />
       </div>
       <div>
-        <strong>Bank USAC</strong>
+        <strong>Bank USAC v1.0.2</strong>
         {!compact && <small>Banca con propósito</small>}
       </div>
     </div>
