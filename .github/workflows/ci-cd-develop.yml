@@ -129,7 +129,7 @@ jobs:
         if: needs.changes.outputs.frontend == 'true'
         run: |
           IMAGE=${{ env.REGISTRY }}/frontend:dev-${{ github.sha }}
-          docker build -t $IMAGE -f frontend/Dockerfile ./frontend
+          docker build -t $IMAGE -f frontend/Dockerfile .
           docker push $IMAGE
 
   deploy-dev:

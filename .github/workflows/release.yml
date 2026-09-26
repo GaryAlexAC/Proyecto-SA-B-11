@@ -70,7 +70,7 @@ jobs:
           # Frontend build
           IMAGE=${{ env.REGISTRY }}/frontend:$VERSION
           echo "📦 Building $IMAGE"
-          docker build -t $IMAGE -f frontend/Dockerfile ./frontend
+          docker build -t $IMAGE -f frontend/Dockerfile .
           docker push $IMAGE
           echo "✅ $IMAGE publicada"
 
