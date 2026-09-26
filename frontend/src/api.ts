@@ -67,7 +67,6 @@ async function request<T>(
   options: { authenticated?: boolean; idempotent?: boolean } = {},
 ): Promise<T> {
   const headers = new Headers(init.headers);
-  headers.set("X-Correlation-Id", crypto.randomUUID());
 
   if (!(init.body instanceof FormData) && init.body !== undefined) {
     headers.set("Content-Type", "application/json");
