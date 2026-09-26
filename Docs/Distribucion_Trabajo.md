@@ -3,7 +3,7 @@
 Este documento detalla la distribución de tareas para la **Fase 2 (Evolución a Cloud)**. El objetivo es equilibrar la carga integrando CI/CD, infraestructura en la nube y nuevas reglas de negocio.
 
 ## 1. Gabriel (Infraestructura, DevOps & Notification) - ✅ Completado
-- **Infraestructura Cloud (Terraform):** Creación de VPC, Firewall, Artifact Registry, Cluster GKE Autopilot y aprovisionamiento de VM para PostgreSQL con script automático.
+- **Infraestructura Cloud (Terraform):** Creación de Azure Virtual Network, Network Security Group, Azure Container Registry, clúster AKS y aprovisionamiento de una VM para PostgreSQL con script automático.
 - **Pipelines CI/CD (GitHub Actions):** Integración continua en `feature/*`, despliegue automatizado a `develop`, versionamiento en `release/*` y rolling update en producción (`main`).
 - **Autoescalado:** Configuración de HPA al 80% de CPU para todos los microservicios en Kubernetes.
 - **Notification Service Extendido:**
@@ -20,13 +20,13 @@ Este documento detalla la distribución de tareas para la **Fase 2 (Evolución a
 1. **Frontend (React + TS):** 
    - Nueva interfaz de administración para ver y cambiar el estado KYC de los clientes.
    - Filtros de estado y fecha en el historial de transacciones.
-   - **Despliegue Obligatorio:** Debe desplegarse en **Google Cloud Run** o en una VM. **Queda terminantemente prohibido usar Amazon S3** (penalización según lineamientos).
+   - **Integración de despliegue:** El frontend se empaqueta con Nginx y se ejecuta como contenedor dentro de AKS. La operación del despliegue se centraliza con el responsable de infraestructura.
 2. **Customer Service (NestJS):**
    - Nuevo modelo/campo `kycStatus` (`PENDING | VERIFIED | REJECTED`).
    - Emitir evento `KYCStatusUpdated` (gravedad INFO/WARNING dependiendo si fue exitoso o rechazado).
 3. **Documentación Técnica (Fase F):**
-   - Actualizar los **Diagramas C4** (Contexto y Contenedores) en Draw.io y `.md` para reflejar GKE, Artifact Registry y Terraform.
-   - Documentar la arquitectura de despliegue GCP en `deployment.md`.
+   - Actualizar los **Diagramas C4** (Contexto y Contenedores) en Draw.io y `.md` para reflejar Azure, AKS, ACR y Terraform.
+   - Documentar la arquitectura de despliegue Azure en `deployment.md`.
 
 ---
 

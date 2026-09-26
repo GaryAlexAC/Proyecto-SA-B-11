@@ -20,14 +20,14 @@ apt-get install -y postgresql postgresql-contrib
 systemctl enable postgresql
 systemctl start postgresql
 
-# Configurar pg_hba.conf para aceptar conexiones desde la red VPC
+# Configurar pg_hba.conf para aceptar conexiones desde la red virtual de Azure
 PG_HBA="/etc/postgresql/14/main/pg_hba.conf"
 # Ubuntu 22.04 puede instalar PG 14
 if [ -f "/etc/postgresql/15/main/pg_hba.conf" ]; then
   PG_HBA="/etc/postgresql/15/main/pg_hba.conf"
 fi
 
-# Permitir conexiones desde el rango de la VPC (10.0.0.0/8)
+# Permitir conexiones desde el rango privado que contiene la VNet
 echo "host    all             all             10.0.0.0/8              md5" >> $PG_HBA
 
 # Configurar postgresql.conf para escuchar en todas las interfaces

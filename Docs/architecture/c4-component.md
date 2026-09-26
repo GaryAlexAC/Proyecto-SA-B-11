@@ -5,6 +5,10 @@
 
 El diagrama muestra la descomposición interna de **Transaction Service** y sus dependencias directas.
 
+En el despliegue cloud, Transaction Service se ejecuta como un Pod dentro del
+nodo trabajador de AKS. RabbitMQ se ejecuta en el mismo clúster y Transaction
+Database es una base lógica de PostgreSQL alojada en la VM `bank-usac-db`.
+
 - El Frontend UI consume el API Gateway mediante `HTTP`.
 
 - El API Gateway envía las solicitudes de creación y consulta de transferencias a TransactionsController mediante `AMQP`.

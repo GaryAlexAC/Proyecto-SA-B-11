@@ -6,6 +6,20 @@ Este documento contiene todos los detalles de la infraestructura aprovisionada e
 - **Región de Despliegue:** `East US 2` (Elegida estratégicamente para evitar topes de cuota).
 - **Grupo de Recursos:** `BankUsacRG_Fase2`
 
+## Modelo de Cómputo
+
+No se administran servidores físicos. Azure proporciona el hardware del centro
+de datos y el proyecto utiliza dos máquinas virtuales:
+
+| Máquina virtual | Tamaño | Uso |
+|---|---|---|
+| Nodo trabajador de AKS | `Standard_D2as_v7` (2 vCPU) | Ejecuta todos los Pods del frontend, API Gateway, microservicios y RabbitMQ |
+| `bank-usac-db` | `Standard_D2as_v7` (2 vCPU) | Ejecuta Ubuntu Server 22.04 LTS y PostgreSQL |
+
+El plano de control de AKS, Azure Load Balancer y Azure Container Registry son
+servicios administrados y no representan máquinas adicionales gestionadas por
+el equipo.
+
 ## 1. Clúster de Kubernetes (AKS)
 - **Nombre del Clúster:** `bank-usac-cluster`
 - **Nodos:** 1 Nodo (Tamaño: `Standard_D2as_v7` - 2 vCPUs)
@@ -16,10 +30,10 @@ Este documento contiene todos los detalles de la infraestructura aprovisionada e
 
 ## 2. Base de Datos (PostgreSQL en VM)
 - **Máquina Virtual:** `bank-usac-db` (Tamaño: `Standard_D2as_v7` - 2 vCPUs, Ubuntu 22.04 LTS Gen2)
-- **IP Externa (Para conectarse con DBeaver/pgAdmin):** `20.94.62.20`
-- **IP Interna (Para uso interno de los microservicios):** `10.0.2.4`
+- **IP Externa:** Consultar con `terraform output -raw db_vm_external_ip`.
+- **IP Interna:** Consultar con `terraform output -raw db_vm_internal_ip`.
 - **Usuario Admin:** `bankadmin`
-- **Contraseña:** `SA_Grupo11`
+- **Contraseña:** Valor sensible proporcionado mediante `db_password`; no debe almacenarse en documentación ni en el repositorio.
 
 ## 3. Azure Container Registry (ACR)
 - **URL del Registry:** `bankusacregistryahq6a0.azurecr.io`
@@ -40,7 +54,7 @@ Para que los pipelines de GitHub Actions funcionen correctamente, los siguientes
 | `AZURE_CREDENTIALS` | (JSON de autenticación del Service Principal) |
 
 ---
-*Nota Arquitectónica: Toda la infraestructura fue ajustada milimétricamente para consumir exactamente **4 vCPUs** en total (2 para AKS, 2 para la VM), respetando el límite máximo estricto de la cuota de la suscripción de Azure for Students.*
+*Nota arquitectónica: la configuración base solicita 4 vCPU en total: 2 vCPU para el nodo trabajador de AKS y 2 vCPU para la VM de PostgreSQL. Los servicios administrados de Azure no se contabilizan como máquinas virtuales controladas por el equipo.*
 
 ---
 
@@ -85,11 +99,13 @@ El microservicio `frontend` está configurado como un `LoadBalancer`, lo que sig
 kubectl get svc frontend -n dev
 ```
 
-En la tabla que aparecerá, busca la columna **`EXTERNAL-IP`**. 
-Copia esa IP (en nuestro caso es **`9.169.131.155`**), pégala en tu navegador web de la siguiente forma: `http://9.169.131.155` y... ¡Deberías ver la interfaz de tu banco cargando desde Azure!
+En la tabla que aparecerá, busca la columna **`EXTERNAL-IP`**. Copia el valor
+asignado actualmente y ábrelo en el navegador mediante `http://<EXTERNAL-IP>`.
+La dirección puede cambiar si se recrea el Service, por lo que no debe fijarse en
+la documentación ni en el frontend.
 
 **Salida en consola:**
 ```bash
 NAME       TYPE           CLUSTER-IP   EXTERNAL-IP     PORT(S)        AGE
-frontend   LoadBalancer   10.0.3.30    9.169.131.155   80:30320/TCP   55m
+frontend   LoadBalancer   <cluster-ip> <external-ip>   80:<node-port>/TCP
 ```
