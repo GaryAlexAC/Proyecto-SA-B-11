@@ -282,8 +282,8 @@ export function DashboardPage({
                         <tr key={tx.id}>
                           <td>{formatDate(tx.createdAt)}</td>
                           <td><code>{tx.id.split("-")[0]}</code></td>
-                          <td><code>{tx.sourceAccountId.slice(-8)}</code></td>
-                          <td><code>{tx.targetAccountId.slice(-8)}</code></td>
+                          <td><code>{tx.sourceAccountId?.slice(-8) ?? "N/A"}</code></td>
+                          <td><code>{tx.targetAccountId?.slice(-8) ?? "N/A"}</code></td>
                           <td style={{ textAlign: "right", color: "var(--color-primary-base)" }}>
                             {formatMoney(Number(tx.amount))}
                           </td>
