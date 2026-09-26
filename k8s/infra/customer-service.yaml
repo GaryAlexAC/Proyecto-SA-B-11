@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: customer-service
+  labels:
+    app: customer-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: customer-service
+  template:
+    metadata:
+      labels:
+        app: customer-service
+    spec:
+      containers:
+      - name: customer-service
+        image: bank-usac/customer-service:v1.0.0
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+        env:
+        - name: DATABASE_URL
+          value: "postgresql://bankadmin:SA_Grupo11@10.0.2.4:5432/db_customer?schema=public"
+        - name: RABBITMQ_URL
+          value: "amqp://rabbitmq:5672"
+        - name: PORT
+          value: "3001"
+        - name: JWT_SECRET
+          value: "local-dev-jwt-secret-change-before-production-local-12345"
+        - name: JWT_EXPIRES_IN
+          value: "1h"
+        - name: ACTIVATION_URL_BASE
+          value: "http://9.169.131.155/"
+        - name: ACTIVATION_TOKEN_TTL_HOURS
+          value: "24"
+        - name: ADMIN_USERNAME
+          value: "admin"
+        - name: ADMIN_PASSWORD
+          value: "ChangeMe123"
+        - name: ADMIN_NAME
+          value: "Bank USAC Admin"
+        - name: ADMIN_EMAIL
+          value: "admin@bankusac.local"
+        # SRE: Health probes prevent traffic to pods that aren't ready
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 15
+          periodSeconds: 30
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "250m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: customer-service
+spec:
+  selector:
+    app: customer-service
+  ports:
+    - protocol: TCP
+      port: 3001
+      targetPort: 3001

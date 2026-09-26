@@ -1,0 +1,30 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../node_modules/@prisma/client-notification"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Severidad del evento para clasificación (Proyecto 2)
+enum EventSeverity {
+  INFO
+  WARNING
+  ERROR
+}
+
+model AuditLog {
+  id            Int           @id @default(autoincrement())
+  eventId       String        @unique
+  eventType     String
+  eventVersion  Int           @default(1)
+  correlationId String
+  causationId   String?
+  producer      String
+  payload       Json
+  severity      EventSeverity @default(INFO)
+  occurredAt    DateTime
+  consumedAt    DateTime      @default(now())
+}

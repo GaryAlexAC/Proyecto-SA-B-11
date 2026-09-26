@@ -1,0 +1,39 @@
+# Dependencias
+node_modules/
+
+# Archivos de construcción y caché
+dist/
+build/
+.next/
+.turbo/
+*.tsbuildinfo
+coverage/
+
+# Variables de entorno (¡NUNCA SE SUBEN!)
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# AI Assistants e IDEs (Configuraciones locales/caché)
+.agents/
+.claude/
+.cursor/
+.devin/
+.vscode/
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
+
+# Terraform — NO commitear estado ni credenciales
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/terraform.tfvars

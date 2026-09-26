@@ -1,0 +1,7 @@
+# terraform.tfvars — NO COMMITEAR ESTE ARCHIVO (está en .gitignore)
+# Copia este archivo y llena los valores reales:
+#
+# resource_group_name = "BankUsacRG_Fase2"
+# location            = "East US 2"
+# db_admin_user        = "bankadmin"
+# db_password          = "una-contraseña-segura"

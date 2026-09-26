@@ -1,0 +1,199 @@
+name: CI+CD — Develop Branch
+
+# Se dispara en push/merge a develop
+on:
+  push:
+    branches:
+      - develop
+
+env:
+  REGISTRY: ${{ secrets.REGISTRY_URL }}
+  AKS_CLUSTER: ${{ secrets.AKS_CLUSTER_NAME }}
+  AZURE_RG: ${{ secrets.AZURE_RG }}
+
+jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      api-gateway: ${{ steps.filter.outputs.api-gateway }}
+      account-service: ${{ steps.filter.outputs.account-service }}
+      customer-service: ${{ steps.filter.outputs.customer-service }}
+      transaction-service: ${{ steps.filter.outputs.transaction-service }}
+      payment-service: ${{ steps.filter.outputs.payment-service }}
+      notification-service: ${{ steps.filter.outputs.notification-service }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api-gateway: 'apps/api-gateway/**'
+            account-service: 'apps/account-service/**'
+            customer-service: 'apps/customer-service/**'
+            transaction-service: 'apps/transaction-service/**'
+            payment-service: 'apps/payment-service/**'
+            notification-service: 'apps/notification-service/**'
+            frontend: 'frontend/**'
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      - run: npm run build --workspaces --if-present
+      - name: Build frontend
+        run: cd frontend && npm ci && npm run build
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      - run: npm run test --workspaces --if-present
+
+  docker-build-push:
+    name: Docker Build & Push (dev)
+    runs-on: ubuntu-latest
+    needs: [test, changes]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build y Push — api-gateway
+        if: needs.changes.outputs.api-gateway == 'true'
+        run: |
+          IMAGE=${{ env.REGISTRY }}/api-gateway:dev-${{ github.sha }}
+          docker build -t $IMAGE -f apps/api-gateway/Dockerfile .
+          docker push $IMAGE
+
+      - name: Build y Push — account-service
+        if: needs.changes.outputs.account-service == 'true'
+        run: |
+          IMAGE=${{ env.REGISTRY }}/account-service:dev-${{ github.sha }}
+          docker build -t $IMAGE -f apps/account-service/Dockerfile .
+          docker push $IMAGE
+
+      - name: Build y Push — customer-service
+        if: needs.changes.outputs.customer-service == 'true'
+        run: |
+          IMAGE=${{ env.REGISTRY }}/customer-service:dev-${{ github.sha }}
+          docker build -t $IMAGE -f apps/customer-service/Dockerfile .
+          docker push $IMAGE
+
+      - name: Build y Push — transaction-service
+        if: needs.changes.outputs.transaction-service == 'true'
+        run: |
+          IMAGE=${{ env.REGISTRY }}/transaction-service:dev-${{ github.sha }}
+          docker build -t $IMAGE -f apps/transaction-service/Dockerfile .
+          docker push $IMAGE
+
+      - name: Build y Push — payment-service
+        if: needs.changes.outputs.payment-service == 'true'
+        run: |
+          IMAGE=${{ env.REGISTRY }}/payment-service:dev-${{ github.sha }}
+          docker build -t $IMAGE -f apps/payment-service/Dockerfile .
+          docker push $IMAGE
+
+      - name: Build y Push — notification-service
+        if: needs.changes.outputs.notification-service == 'true'
+        run: |
+          IMAGE=${{ env.REGISTRY }}/notification-service:dev-${{ github.sha }}
+          docker build -t $IMAGE -f apps/notification-service/Dockerfile .
+          docker push $IMAGE
+
+      - name: Build y Push — frontend
+        if: needs.changes.outputs.frontend == 'true'
+        run: |
+          IMAGE=${{ env.REGISTRY }}/frontend:dev-${{ github.sha }}
+          docker build -t $IMAGE -f frontend/Dockerfile .
+          docker push $IMAGE
+
+  deploy-dev:
+    name: Deploy to AKS (dev)
+    runs-on: ubuntu-latest
+    needs: [docker-build-push, changes]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: AKS Set Context
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: ${{ env.AZURE_RG }}
+          cluster-name: ${{ env.AKS_CLUSTER }}
+
+      - name: Crear namespace dev (si no existe)
+        run: kubectl create namespace dev --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Desplegar infraestructura base (RabbitMQ)
+        run: kubectl apply -f k8s/infra/rabbitmq-deployment.yaml -n dev
+
+      - name: Construir lista de servicios modificados
+        id: modified-services
+        env:
+          C_API: ${{ needs.changes.outputs.api-gateway }}
+          C_ACC: ${{ needs.changes.outputs.account-service }}
+          C_CUS: ${{ needs.changes.outputs.customer-service }}
+          C_TRA: ${{ needs.changes.outputs.transaction-service }}
+          C_PAY: ${{ needs.changes.outputs.payment-service }}
+          C_NOT: ${{ needs.changes.outputs.notification-service }}
+          C_FRO: ${{ needs.changes.outputs.frontend }}
+        run: |
+          SERVICES=""
+          [ "$C_API" == "true" ] && SERVICES="$SERVICES api-gateway"
+          [ "$C_ACC" == "true" ] && SERVICES="$SERVICES account-service"
+          [ "$C_CUS" == "true" ] && SERVICES="$SERVICES customer-service"
+          [ "$C_TRA" == "true" ] && SERVICES="$SERVICES transaction-service"
+          [ "$C_PAY" == "true" ] && SERVICES="$SERVICES payment-service"
+          [ "$C_NOT" == "true" ] && SERVICES="$SERVICES notification-service"
+          [ "$C_FRO" == "true" ] && SERVICES="$SERVICES frontend"
+          echo "SERVICES=$SERVICES" >> $GITHUB_ENV
+
+      - name: Deploy microservicios modificados en namespace dev
+        run: |
+          if [ -z "$SERVICES" ]; then
+            echo "No hay servicios modificados para desplegar."
+            exit 0
+          fi
+          for service in $SERVICES; do
+            echo "Desplegando $service..."
+            kubectl apply -f k8s/infra/${service}.yaml -n dev
+            kubectl set image deployment/$service \
+              $service=${{ env.REGISTRY }}/$service:dev-${{ github.sha }} \
+              -n dev
+          done
+
+      - name: Verificar rollout
+        run: |
+          if [ -z "$SERVICES" ]; then exit 0; fi
+          for service in $SERVICES; do
+            kubectl rollout status deployment/$service -n dev --timeout=300s
+          done

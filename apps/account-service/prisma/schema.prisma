@@ -1,0 +1,63 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../node_modules/@prisma/client-account"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id             String        @id @default(uuid())
+  customerId     String
+  type           AccountType   @default(MONETARIA)
+  balance        Decimal       @db.Decimal(15, 2)
+  minimumBalance Decimal       @default(0) @db.Decimal(15, 2)
+  transactionFee Decimal       @default(0) @db.Decimal(15, 2)
+  status         AccountStatus @default(ACTIVE)
+  lastActivity   DateTime      @default(now())
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  processedEvents ProcessedEvent[]
+}
+
+model ProcessedEvent {
+  id              String   @id @default(uuid())
+  eventId         String   @unique
+  processedAt     DateTime @default(now())
+  accountId       String?
+  resultEventType String   @default("Processed")
+  resultPayload   Json     @default("{}")
+  account         Account? @relation(fields: [accountId], references: [id])
+}
+
+model OutboxEvent {
+  id            String   @id
+  eventType     String
+  eventVersion  Int      @default(1)
+  occurredAt    DateTime @default(now())
+  correlationId String
+  causationId   String?
+  producer      String   @default("account-service")
+  payload       Json
+  attempts      Int      @default(0)
+  nextAttemptAt DateTime @default(now())
+  publishedAt   DateTime?
+  failedAt      DateTime?
+  lastError     String?
+
+  @@index([publishedAt, failedAt, nextAttemptAt])
+}
+
+enum AccountType {
+  MONETARIA
+  AHORRO
+}
+
+enum AccountStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+}

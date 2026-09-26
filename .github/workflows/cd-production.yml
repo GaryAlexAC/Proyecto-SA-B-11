@@ -1,0 +1,80 @@
+name: CD — Deploy a Producción
+
+# Se dispara SOLO en merge a main
+on:
+  push:
+    branches:
+      - main
+
+env:
+  REGISTRY: ${{ secrets.REGISTRY_URL }}
+  AKS_CLUSTER: ${{ secrets.AKS_CLUSTER_NAME }}
+  AZURE_RG: ${{ secrets.AZURE_RG }}
+
+jobs:
+  deploy-production:
+    name: Rolling Update en Producción
+    runs-on: ubuntu-latest
+    environment: production  # Requiere aprobación manual en GitHub (recomendado)
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: AKS Set Context
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: ${{ env.AZURE_RG }}
+          cluster-name: ${{ env.AKS_CLUSTER }}
+
+      - name: Obtener versión del último release
+        id: get_version
+        run: |
+          # Busca el tag más reciente en el repositorio
+          VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "🏷️  Desplegando versión: $VERSION"
+
+      - name: Crear namespace prod (si no existe)
+        run: kubectl create namespace prod --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Desplegar infraestructura base (RabbitMQ)
+        run: kubectl apply -f k8s/infra/rabbitmq-deployment.yaml -n prod
+
+      - name: Rolling Update en producción
+        run: |
+          VERSION=${{ steps.get_version.outputs.version }}
+          
+          # Crear copias temporales de los manifiestos para prod
+          mkdir -p k8s/prod-infra
+          cp k8s/infra/*.yaml k8s/prod-infra/
+          
+          # Separar la base de datos de 'dev' reemplazando el esquema public por prod
+          # y evitar que el frontend de prod apunte al backend de dev o viceversa
+          sed -i 's/schema=public/schema=prod/g' k8s/prod-infra/*.yaml
+          
+          for service in api-gateway account-service customer-service transaction-service payment-service notification-service frontend; do
+            echo "🚀 Actualizando $service a versión $VERSION..."
+            
+            # 1. Aplicar la infraestructura (crea el servicio/deployment si no existe)
+            kubectl apply -f k8s/prod-infra/${service}.yaml -n prod
+            
+            # 2. Actualizar la imagen a la nueva versión
+            kubectl set image deployment/$service \
+              $service=${{ env.REGISTRY }}/$service:$VERSION \
+              -n prod
+          done
+
+      - name: Verificar rollout exitoso
+        run: |
+          for service in api-gateway account-service customer-service transaction-service payment-service notification-service frontend; do
+            echo "⏳ Verificando rollout de $service..."
+            kubectl rollout status deployment/$service -n prod --timeout=300s
+            echo "✅ $service desplegado correctamente"
+          done
+
+      - name: Mostrar estado final de pods
+        run: kubectl get pods -n prod
