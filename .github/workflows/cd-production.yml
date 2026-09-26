@@ -61,16 +61,15 @@ jobs:
           # Cambiar el nodePort del api-gateway-external para evitar colisión con dev (30000)
           sed -i 's/nodePort: 30000/nodePort: 30001/g' k8s/prod-infra/api-gateway.yaml
           
+          # Pre-inyectar la imagen real del ACR en los YAMLs ANTES de aplicar
+          # Esto evita que los pods intenten jalar la imagen placeholder durante el rolling update
+          for service in api-gateway account-service customer-service transaction-service payment-service notification-service frontend; do
+            sed -i "s|image: bank-usac/${service}:.*|image: ${{ env.REGISTRY }}/${service}:${VERSION}|g" k8s/prod-infra/${service}.yaml
+          done
+          
           for service in api-gateway account-service customer-service transaction-service payment-service notification-service frontend; do
             echo "🚀 Actualizando $service a versión $VERSION..."
-            
-            # 1. Aplicar la infraestructura (crea el servicio/deployment si no existe)
             kubectl apply -f k8s/prod-infra/${service}.yaml -n prod
-            
-            # 2. Actualizar la imagen a la nueva versión
-            kubectl set image deployment/$service \
-              $service=${{ env.REGISTRY }}/$service:$VERSION \
-              -n prod
           done
 
       - name: Verificar rollout exitoso
