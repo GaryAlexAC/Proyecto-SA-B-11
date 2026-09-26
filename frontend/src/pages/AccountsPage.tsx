@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../api";
 import { useAuth } from "../auth";
-import type { Account, AccountType } from "../types";
+import type { Account, AccountType, Customer } from "../types";
 import {
   Alert,
   Button,
@@ -12,6 +12,7 @@ import {
   SelectField,
   StatusBadge,
   formatDate,
+  formatAccountNumber,
   formatMoney,
 } from "../ui";
 
@@ -21,6 +22,7 @@ export function AccountsPage() {
   const fixedCustomer = user.role === "CLIENT" ? user.customerId : "";
   const isOperator = user.role === "CASHIER" || user.role === "ADMIN";
   const [customerId, setCustomerId] = useState(fixedCustomer);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [balances, setBalances] = useState<Record<string, string>>({});
   const [type, setType] = useState<AccountType>("MONETARIA");
@@ -32,7 +34,7 @@ export function AccountsPage() {
 
   async function loadAccounts(target = customerId) {
     if (!target.trim()) {
-      setError("Ingresa el identificador del cliente");
+      setError("Selecciona un cliente");
       return;
     }
     setLoading(true);
@@ -53,7 +55,23 @@ export function AccountsPage() {
   }
 
   useEffect(() => {
-    if (fixedCustomer) void loadAccounts(fixedCustomer);
+    if (fixedCustomer) {
+      void loadAccounts(fixedCustomer);
+      return;
+    }
+
+    void api
+      .listCustomers()
+      .then((data) =>
+        setCustomers(data.filter((customer) => customer.role === "CLIENT")),
+      )
+      .catch((caught: unknown) =>
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "No fue posible cargar los clientes",
+        ),
+      );
   }, [fixedCustomer]);
 
   async function createAccount(event: FormEvent) {
@@ -113,12 +131,25 @@ export function AccountsPage() {
 
       {user.role !== "CLIENT" && (
         <section className="content-card lookup-bar">
-          <Field
-            label="Identificador del cliente"
+          <SelectField
+            label="Cliente"
             value={customerId}
-            onChange={(event) => setCustomerId(event.target.value)}
-            placeholder="UUID del cliente"
-          />
+            onChange={(value) => {
+              setCustomerId(value);
+              setAccounts([]);
+              setBalances({});
+            }}
+            required
+          >
+            <option value="" disabled>
+              Selecciona un cliente
+            </option>
+            {customers.map((customer) => (
+              <option key={customer.id} value={customer.id}>
+                {`${customer.fullName} · @${customer.username}`}
+              </option>
+            ))}
+          </SelectField>
           <Button onClick={() => void loadAccounts()} disabled={loading}>
             <Icon name="search" /> Consultar cuentas
           </Button>
@@ -159,7 +190,10 @@ export function AccountsPage() {
                   <strong>
                     {balances[account.id] ?? formatMoney(account.balance)}
                   </strong>
-                  <code>{account.id.toUpperCase()}</code>
+                  <small className="bank-card__account-caption">
+                    Número de cuenta
+                  </small>
+                  <code>{formatAccountNumber(account.id)}</code>
                   <div className="bank-card__bottom">
                     <span>
                       Última actividad
@@ -203,13 +237,21 @@ export function AccountsPage() {
             <span className="overline">Apertura</span>
             <h2>Nueva cuenta</h2>
             <p>Crea un producto para el cliente consultado.</p>
-            <Field
-              label="Cliente"
+            <SelectField
+              label="Cliente titular"
               value={customerId}
-              onChange={(event) => setCustomerId(event.target.value)}
-              placeholder="UUID del cliente"
+              onChange={setCustomerId}
               required
-            />
+            >
+              <option value="" disabled>
+                Selecciona un cliente
+              </option>
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>
+                  {`${customer.fullName} · @${customer.username}`}
+                </option>
+              ))}
+            </SelectField>
             <SelectField
               label="Tipo de cuenta"
               value={type}

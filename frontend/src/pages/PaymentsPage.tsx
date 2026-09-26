@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../api";
 import { useAuth } from "../auth";
-import type { Account, Payment, Service } from "../types";
+import type { Account, Customer, Payment, Service } from "../types";
 import {
   Alert,
   Button,
@@ -10,6 +10,7 @@ import {
   Icon,
   SelectField,
   StatusBadge,
+  accountOptionLabel,
   formatDate,
   formatMoney,
 } from "../ui";
@@ -18,8 +19,9 @@ export function PaymentsPage() {
   const { session } = useAuth();
   const user = session!.user;
   const fixedCustomer = user.role === "CLIENT" ? user.customerId : "";
-  const isOperator = user.role === "CASHIER" || user.role === "ADMIN";
+  const isCashier = user.role === "CASHIER";
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [serviceId, setServiceId] = useState("");
   const [sourceAccountId, setSourceAccountId] = useState("");
@@ -35,12 +37,19 @@ export function PaymentsPage() {
   useEffect(() => {
     async function loadPaymentOptions() {
       try {
-        const [availableServices, customerAccounts] = await Promise.all([
-          api.getServices(),
-          fixedCustomer ? api.getAccounts(fixedCustomer) : Promise.resolve([]),
-        ]);
+        const [availableServices, customerAccounts, customerData] =
+          await Promise.all([
+            api.getServices(),
+            fixedCustomer
+              ? api.getAccounts(fixedCustomer)
+              : Promise.resolve([]),
+            fixedCustomer ? Promise.resolve([]) : api.listCustomers(),
+          ]);
         setServices(availableServices);
         setAccounts(customerAccounts);
+        setCustomers(
+          customerData.filter((customer) => customer.role === "CLIENT"),
+        );
       } catch (caught) {
         setError(
           caught instanceof Error
@@ -52,6 +61,21 @@ export function PaymentsPage() {
 
     void loadPaymentOptions();
   }, [fixedCustomer]);
+
+  async function selectCustomer(value: string) {
+    setCustomerId(value);
+    setSourceAccountId("");
+    setAccounts([]);
+    try {
+      setAccounts(await api.getAccounts(value));
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "No fue posible cargar las cuentas del cliente",
+      );
+    }
+  }
 
   useEffect(() => {
     if (!result || result.status !== "PENDING") return;
@@ -72,12 +96,12 @@ export function PaymentsPage() {
     event.preventDefault();
     setLoading(true);
     setError("");
-      setMessage("");
+    setMessage("");
     try {
       const payment = await api.createPayment({
         serviceId,
         sourceAccountId: sourceAccountId.trim(),
-        customerId: isOperator ? customerId.trim() : undefined,
+        customerId: isCashier ? customerId.trim() : undefined,
       });
       setResult(payment);
       setLookupId(payment.id);
@@ -149,40 +173,40 @@ export function PaymentsPage() {
               readOnly
             />
           )}
-          {isOperator && (
-            <Field
+          {isCashier && (
+            <SelectField
               label="Cliente titular"
               value={customerId}
-              onChange={(event) => setCustomerId(event.target.value)}
-              placeholder="UUID del cliente"
-              required
-            />
-          )}
-          {user.role === "CLIENT" ? (
-            <SelectField
-              label="Cuenta de pago"
-              value={sourceAccountId}
-              onChange={setSourceAccountId}
+              onChange={(value) => void selectCustomer(value)}
               required
             >
               <option value="" disabled>
-                Selecciona una cuenta
+                Selecciona un cliente
               </option>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {`Cuenta ${account.type.toLowerCase()} - ${account.id}`}
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>
+                  {`${customer.fullName} · @${customer.username}`}
                 </option>
               ))}
             </SelectField>
-          ) : (
-            <Field
-              label="Cuenta de pago"
-              value={sourceAccountId}
-              onChange={(event) => setSourceAccountId(event.target.value)}
-              placeholder="UUID de la cuenta"
-              required
-            />
           )}
+          <SelectField
+            label="Cuenta de pago"
+            value={sourceAccountId}
+            onChange={setSourceAccountId}
+            required
+          >
+            <option value="" disabled>
+              {customerId
+                ? "Selecciona una cuenta"
+                : "Selecciona primero un cliente"}
+            </option>
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {accountOptionLabel(account)}
+              </option>
+            ))}
+          </SelectField>
           <Button type="submit" disabled={loading}>
             {loading ? "Procesando..." : "Procesar pago"} <Icon name="arrow" />
           </Button>
@@ -195,10 +219,10 @@ export function PaymentsPage() {
               <h2>Buscar pago</h2>
             </div>
             <Field
-              label="ID del pago"
+              label="Referencia del pago"
               value={lookupId}
               onChange={(event) => setLookupId(event.target.value)}
-              placeholder="UUID"
+              placeholder="Referencia de la operación"
               required
             />
             <Button type="submit" variant="secondary">
@@ -209,7 +233,7 @@ export function PaymentsPage() {
             {result === undefined ? (
               <EmptyState
                 title="Sin pago seleccionado"
-                detail="Procesa un pago o búscalo por su identificador."
+                detail="Procesa un pago o búscalo por su referencia."
               />
             ) : result ? (
               <>
@@ -229,7 +253,7 @@ export function PaymentsPage() {
                 <p>{result.description || "Pago sin descripción"}</p>
                 <dl>
                   <div>
-                    <dt>Identificador</dt>
+                    <dt>Referencia</dt>
                     <dd>{result.id}</dd>
                   </div>
                   <div>
@@ -239,7 +263,7 @@ export function PaymentsPage() {
                     </dd>
                   </div>
                   <div>
-                    <dt>Transacción</dt>
+                    <dt>Referencia de transacción</dt>
                     <dd>{result.transactionId}</dd>
                   </div>
                   <div>
@@ -257,7 +281,7 @@ export function PaymentsPage() {
             ) : (
               <EmptyState
                 title="Pago no encontrado"
-                detail="Verifica el identificador ingresado."
+                detail="Verifica la referencia ingresada."
               />
             )}
           </section>

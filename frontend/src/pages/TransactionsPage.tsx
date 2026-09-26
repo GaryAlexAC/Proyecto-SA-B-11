@@ -1,7 +1,12 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../api";
 import { useAuth } from "../auth";
-import type { Account, Transaction, TransactionStatus } from "../types";
+import type {
+  Account,
+  Customer,
+  Transaction,
+  TransactionStatus,
+} from "../types";
 import {
   Alert,
   Button,
@@ -11,16 +16,20 @@ import {
   Loading,
   SelectField,
   StatusBadge,
+  accountOptionLabel,
   formatDate,
+  formatAccountNumber,
   formatMoney,
+  shortAccountNumber,
 } from "../ui";
 
 export function TransactionsPage() {
   const { session } = useAuth();
   const user = session!.user;
   const fixedCustomer = user.role === "CLIENT" ? user.customerId : "";
-  const isOperator = user.role === "CASHIER" || user.role === "ADMIN";
+  const isCashier = user.role === "CASHIER";
   const [customerId, setCustomerId] = useState(fixedCustomer);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [sourceAccount, setSourceAccount] = useState("");
@@ -41,7 +50,7 @@ export function TransactionsPage() {
 
   async function loadHistory(target = customerId) {
     if (!target.trim()) {
-      setError("Ingresa el identificador del cliente");
+      setError("Selecciona un cliente");
       return;
     }
     setLoading(true);
@@ -66,8 +75,46 @@ export function TransactionsPage() {
     }
   }
 
+  async function loadCustomerAccounts(target: string) {
+    setAccounts([]);
+    if (!target) return;
+    try {
+      setAccounts(await api.getAccounts(target));
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "No fue posible consultar las cuentas",
+      );
+    }
+  }
+
+  function selectCustomer(value: string) {
+    setCustomerId(value);
+    setSourceAccount("");
+    setAccountFilter("");
+    setTransactions([]);
+    void loadCustomerAccounts(value);
+  }
+
   useEffect(() => {
-    if (fixedCustomer) void loadHistory(fixedCustomer);
+    if (fixedCustomer) {
+      void loadHistory(fixedCustomer);
+      return;
+    }
+
+    void api
+      .listCustomers()
+      .then((data) =>
+        setCustomers(data.filter((customer) => customer.role === "CLIENT")),
+      )
+      .catch((caught: unknown) =>
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "No fue posible cargar los clientes",
+        ),
+      );
   }, [fixedCustomer]);
 
   useEffect(() => {
@@ -98,9 +145,7 @@ export function TransactionsPage() {
         sourceAccount.trim(),
         targetAccount.trim(),
         Number(amount),
-        user.role === "CASHIER" || user.role === "ADMIN"
-          ? customerId.trim()
-          : undefined,
+        isCashier ? customerId.trim() : undefined,
       );
       setTransactions((current) => [created, ...current]);
       setLookupResult(created);
@@ -142,7 +187,7 @@ export function TransactionsPage() {
           <span className="overline">Movimiento de fondos</span>
           <h1>Transferencias</h1>
           <p>
-            Envía dinero y consulta el avance de cada operación distribuida.
+            Envía dinero y consulta el estado de cada operación.
           </p>
         </div>
       </header>
@@ -153,45 +198,45 @@ export function TransactionsPage() {
           <div className="operation-form__number">01</div>
           <span className="overline">Nueva operación</span>
           <h2>Transferir fondos</h2>
-          {isOperator && (
-            <Field
+          {isCashier && (
+            <SelectField
               label="Cliente titular"
               value={customerId}
-              onChange={(event) => setCustomerId(event.target.value)}
-              placeholder="UUID del cliente"
-              required
-            />
-          )}
-          {user.role === "CLIENT" ? (
-            <SelectField
-              label="Cuenta origen"
-              value={sourceAccount}
-              onChange={setSourceAccount}
+              onChange={selectCustomer}
               required
             >
               <option value="" disabled>
-                Selecciona una cuenta
+                Selecciona un cliente
               </option>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {`Cuenta ${account.type.toLowerCase()} - ${account.id}`}
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>
+                  {`${customer.fullName} · @${customer.username}`}
                 </option>
               ))}
             </SelectField>
-          ) : (
-            <Field
-              label="Cuenta origen"
-              value={sourceAccount}
-              onChange={(event) => setSourceAccount(event.target.value)}
-              placeholder="UUID de la cuenta"
-              required
-            />
           )}
+          <SelectField
+            label="Cuenta origen"
+            value={sourceAccount}
+            onChange={setSourceAccount}
+            required
+          >
+            <option value="" disabled>
+              {customerId
+                ? "Selecciona una cuenta"
+                : "Selecciona primero un cliente"}
+            </option>
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {accountOptionLabel(account)}
+              </option>
+            ))}
+          </SelectField>
           <Field
-            label="Cuenta destino"
+            label="Número de cuenta destino"
             value={targetAccount}
             onChange={(event) => setTargetAccount(event.target.value)}
-            placeholder="UUID de la cuenta receptora"
+            placeholder="Ingresa el número de cuenta"
             required
           />
           <Field
@@ -209,21 +254,21 @@ export function TransactionsPage() {
             <Icon name="arrow" />
           </Button>
           <small>
-            El resultado inicia como pendiente y se actualiza mediante la saga
-            bancaria.
+            La operación protege ambos saldos y se revierte automáticamente si
+            algún paso falla.
           </small>
         </form>
         <div className="operations-side">
           <form className="content-card inline-lookup" onSubmit={lookup}>
             <div>
               <span className="overline">Seguimiento</span>
-              <h2>Consultar por ID</h2>
+              <h2>Consultar operación</h2>
             </div>
             <Field
-              label="ID de transferencia"
+              label="Referencia de transferencia"
               value={lookupId}
               onChange={(event) => setLookupId(event.target.value)}
-              placeholder="UUID"
+              placeholder="Referencia de la operación"
               required
             />
             <Button type="submit" variant="secondary">
@@ -237,7 +282,7 @@ export function TransactionsPage() {
               ) : (
                 <EmptyState
                   title="Transferencia no encontrada"
-                  detail="Verifica el identificador ingresado."
+                  detail="Verifica la referencia ingresada."
                 />
               )}
             </div>
@@ -256,35 +301,34 @@ export function TransactionsPage() {
           </Button>
         </div>
         <div className="history-filters">
-          {isOperator && (
-            <Field
+          {isCashier && (
+            <SelectField
               label="Cliente"
               value={customerId}
-              onChange={(event) => setCustomerId(event.target.value)}
-              placeholder="UUID del cliente"
-            />
-          )}
-          {user.role === "CLIENT" ? (
-            <SelectField
-              label="Cuenta"
-              value={accountFilter}
-              onChange={setAccountFilter}
+              onChange={selectCustomer}
             >
-              <option value="">Todas las cuentas</option>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {`${account.type.toLowerCase()} - ${account.id.slice(0, 8)}…`}
+              <option value="" disabled>
+                Selecciona un cliente
+              </option>
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>
+                  {`${customer.fullName} · @${customer.username}`}
                 </option>
               ))}
             </SelectField>
-          ) : (
-            <Field
-              label="Cuenta"
-              value={accountFilter}
-              onChange={(event) => setAccountFilter(event.target.value)}
-              placeholder="Todas o UUID"
-            />
           )}
+          <SelectField
+            label="Cuenta"
+            value={accountFilter}
+            onChange={setAccountFilter}
+          >
+            <option value="">Todas las cuentas</option>
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {accountOptionLabel(account)}
+              </option>
+            ))}
+          </SelectField>
           <SelectField
             label="Estado"
             value={statusFilter}
@@ -335,10 +379,10 @@ export function TransactionsPage() {
                 onClick={() => setLookupResult(transaction)}
               >
                 <span>{formatDate(transaction.createdAt, true)}</span>
-                <code>{transaction.sourceAccountId.slice(0, 8)}…</code>
+                <code>{shortAccountNumber(transaction.sourceAccountId)}</code>
                 <code>
                   {transaction.targetAccountId
-                    ? `${transaction.targetAccountId.slice(0, 8)}…`
+                    ? shortAccountNumber(transaction.targetAccountId)
                     : "Pago de servicio"}
                 </code>
                 <StatusBadge status={transaction.status} />
@@ -365,7 +409,7 @@ function TransactionSummary({ transaction }: { transaction: Transaction }) {
           <Icon name="transfer" />
         </div>
         <div>
-          <small>Transferencia</small>
+          <small>Referencia de transferencia</small>
           <strong>{transaction.id.slice(0, 12)}…</strong>
         </div>
         <StatusBadge status={transaction.status} />
@@ -375,12 +419,16 @@ function TransactionSummary({ transaction }: { transaction: Transaction }) {
       </strong>
       <dl>
         <div>
-          <dt>Origen</dt>
-          <dd>{transaction.sourceAccountId}</dd>
+          <dt>Número de cuenta origen</dt>
+          <dd>{formatAccountNumber(transaction.sourceAccountId)}</dd>
         </div>
         <div>
-          <dt>Destino</dt>
-          <dd>{transaction.targetAccountId}</dd>
+          <dt>Número de cuenta destino</dt>
+          <dd>
+            {transaction.targetAccountId
+              ? formatAccountNumber(transaction.targetAccountId)
+              : "Pago de servicio"}
+          </dd>
         </div>
         <div>
           <dt>Fecha</dt>

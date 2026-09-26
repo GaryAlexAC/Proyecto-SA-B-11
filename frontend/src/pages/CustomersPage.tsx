@@ -28,6 +28,7 @@ const emptyCustomer: CustomerInput = {
 export function CustomersPage() {
   const { session } = useAuth();
   const role = session!.user.role;
+  const currentCustomerId = session!.user.customerId;
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selected, setSelected] = useState<Customer | null>(null);
   const [query, setQuery] = useState("");
@@ -41,9 +42,15 @@ export function CustomersPage() {
     setError("");
     try {
       const data = await api.listCustomers();
-      setCustomers(data);
+      const visibleCustomers =
+        role === "CASHIER"
+          ? data.filter((customer) => customer.role === "CLIENT")
+          : data;
+      setCustomers(visibleCustomers);
       if (selected)
-        setSelected(data.find((item) => item.id === selected.id) ?? null);
+        setSelected(
+          visibleCustomers.find((item) => item.id === selected.id) ?? null,
+        );
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -77,9 +84,11 @@ export function CustomersPage() {
       <header className="page-header">
         <div>
           <span className="overline">Gestión de personas</span>
-          <h1>Directorio de usuarios</h1>
+          <h1>{role === "CASHIER" ? "Directorio de clientes" : "Directorio de usuarios"}</h1>
           <p>
-            Consulta identidades, estados y accesos registrados en Bank USAC.
+            {role === "CASHIER"
+              ? "Consulta y registra únicamente clientes de Bank USAC."
+              : "Consulta identidades, estados y accesos registrados en Bank USAC."}
           </p>
         </div>
         <Button
@@ -160,8 +169,11 @@ export function CustomersPage() {
             <CustomerDetail
               customer={selected}
               canEdit={role === "ADMIN"}
-              canBlock={role === "ADMIN"}
+              canBlock={
+                role === "ADMIN" && selected.id !== currentCustomerId
+              }
               canManageKyc={role === "ADMIN"}
+              canUpdateDocument={selected.role === "CLIENT"}
               onChange={(customer) => {
                 setSelected(customer);
                 setCustomers((current) =>
@@ -357,12 +369,14 @@ function CustomerDetail({
   canEdit,
   canBlock,
   canManageKyc,
+  canUpdateDocument,
   onChange,
 }: {
   customer: Customer;
   canEdit: boolean;
   canBlock: boolean;
   canManageKyc: boolean;
+  canUpdateDocument: boolean;
   onChange: (customer: Customer) => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -574,10 +588,6 @@ function CustomerDetail({
             <dt>Dirección</dt>
             <dd>{customer.address}</dd>
           </div>
-          <div>
-            <dt>Versión</dt>
-            <dd>{customer.version}</dd>
-          </div>
           {customer.role === "CLIENT" && (
             <div>
               <dt>Estado KYC</dt>
@@ -618,30 +628,32 @@ function CustomerDetail({
           )}
         </div>
       )}
-      <div className="document-update">
-        <div>
-          <strong>Documento de identidad</strong>
-          <small>
-            {customer.hasIdentityPhoto
-              ? "Fotografía registrada"
-              : "Sin fotografía"}
-          </small>
+      {canUpdateDocument && (
+        <div className="document-update">
+          <div>
+            <strong>Documento de identidad</strong>
+            <small>
+              {customer.hasIdentityPhoto
+                ? "Fotografía registrada"
+                : "Sin fotografía"}
+            </small>
+          </div>
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={(event) => setPhoto(event.target.files?.[0] ?? null)}
+          />
+          {photo && (
+            <Button
+              variant="secondary"
+              disabled={saving}
+              onClick={() => void updatePhoto()}
+            >
+              Actualizar fotografía
+            </Button>
+          )}
         </div>
-        <input
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          onChange={(event) => setPhoto(event.target.files?.[0] ?? null)}
-        />
-        {photo && (
-          <Button
-            variant="secondary"
-            disabled={saving}
-            onClick={() => void updatePhoto()}
-          >
-            Actualizar fotografía
-          </Button>
-        )}
-      </div>
+      )}
       <div className="detail-actions">
         {canEdit && !editing && (
           <Button variant="secondary" onClick={() => setEditing(true)}>

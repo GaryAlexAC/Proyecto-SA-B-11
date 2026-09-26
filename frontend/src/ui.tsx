@@ -4,6 +4,7 @@ import type {
   ReactNode,
 } from "react";
 import type {
+  Account,
   AccountStatus,
   CustomerStatus,
   KycStatus,
@@ -11,6 +12,22 @@ import type {
   TransactionStatus,
   UserRole,
 } from "./types";
+
+export function formatAccountNumber(id: string) {
+  const compact = id.replace(/[\s-]/g, "").toUpperCase();
+  return compact.match(/.{1,4}/g)?.join(" ") ?? compact;
+}
+
+export function accountOptionLabel(account: Pick<Account, "id" | "type">) {
+  const number = formatAccountNumber(account.id).replace(/\s/g, "");
+  const type = account.type === "AHORRO" ? "Ahorro" : "Monetaria";
+  return `${type} · terminación ${number.slice(-6)}`;
+}
+
+export function shortAccountNumber(id: string) {
+  const number = formatAccountNumber(id).replace(/\s/g, "");
+  return `•••• ${number.slice(-6)}`;
+}
 
 export function Brand({ compact = false }: { compact?: boolean }) {
   return (

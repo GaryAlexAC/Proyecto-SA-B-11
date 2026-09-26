@@ -121,7 +121,6 @@ export function ProfilePage() {
                 <span className="overline">Datos de contacto</span>
                 <h2>Información personal</h2>
               </div>
-              <span className="version-tag">Versión {customer.version}</span>
             </div>
             {error && <Alert>{error}</Alert>}
             {message && <Alert tone="success">{message}</Alert>}

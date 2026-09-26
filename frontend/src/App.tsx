@@ -49,13 +49,13 @@ const navigation: NavigationItem[] = [
     id: "transactions",
     label: "Transferencias",
     icon: "transfer",
-    roles: ["ADMIN", "CASHIER", "CLIENT"],
+    roles: ["CASHIER", "CLIENT"],
   },
   {
     id: "payments",
     label: "Pagos",
     icon: "payment",
-    roles: ["ADMIN", "CASHIER", "CLIENT"],
+    roles: ["CASHIER", "CLIENT"],
   },
   {
     id: "profile",
@@ -76,9 +76,13 @@ export function App() {
     return <ActivationPage token={activationToken} />;
   if (!session) return <LoginPage />;
 
-  const items = navigation.filter((item) =>
-    item.roles.includes(session.user.role),
-  );
+  const items = navigation
+    .filter((item) => item.roles.includes(session.user.role))
+    .map((item) =>
+      session.user.role === "CASHIER" && item.id === "customers"
+        ? { ...item, label: "Clientes" }
+        : item,
+    );
   const activePage = items.some((item) => item.id === page)
     ? page
     : "dashboard";

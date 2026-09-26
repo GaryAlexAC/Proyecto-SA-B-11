@@ -1281,6 +1281,10 @@ p {
   letter-spacing: 0.08em;
   overflow-wrap: anywhere;
 }
+.bank-card > .bank-card__account-caption {
+  display: block;
+  margin-bottom: 3px;
+}
 .kyc-panel {
   display: flex;
   flex-direction: column;

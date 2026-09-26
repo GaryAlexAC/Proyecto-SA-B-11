@@ -39,7 +39,13 @@ export function DashboardPage({
             }
           })
         : api.listCustomers().then((data) => {
-            if (active) setCustomers(data);
+            if (active) {
+              setCustomers(
+                session!.user.role === "CASHIER"
+                  ? data.filter((customer) => customer.role === "CLIENT")
+                  : data,
+              );
+            }
           });
     load
       .catch(() => undefined)
@@ -109,7 +115,7 @@ export function DashboardPage({
             <article className="metric-card metric-card--accent">
               <span>Acceso</span>
               <strong>Protegido</strong>
-              <small>Sesión verificada con JWT</small>
+              <small>Sesión activa y protegida</small>
               <button onClick={() => onNavigate("profile")}>
                 Revisar perfil <Icon name="arrow" />
               </button>
@@ -158,9 +164,17 @@ export function DashboardPage({
         <>
           <section className="metric-grid">
             <article className="metric-card metric-card--primary">
-              <span>Personas registradas</span>
+              <span>
+                {user.role === "CASHIER"
+                  ? "Clientes registrados"
+                  : "Personas registradas"}
+              </span>
               <strong>{customers.length}</strong>
-              <small>En el directorio general</small>
+              <small>
+                {user.role === "CASHIER"
+                  ? "En tu directorio de clientes"
+                  : "En el directorio general"}
+              </small>
               <button onClick={() => onNavigate("customers")}>
                 Abrir directorio <Icon name="arrow" />
               </button>
@@ -196,7 +210,11 @@ export function DashboardPage({
             <div className="section-heading">
               <div>
                 <span className="overline">Directorio</span>
-                <h2>Registros recientes</h2>
+                 <h2>
+                   {user.role === "CASHIER"
+                     ? "Clientes recientes"
+                     : "Registros recientes"}
+                 </h2>
               </div>
             </div>
             {customers.length ? (
@@ -217,7 +235,11 @@ export function DashboardPage({
             ) : (
               <EmptyState
                 title="El directorio está vacío"
-                detail="Los usuarios registrados aparecerán aquí."
+                detail={
+                  user.role === "CASHIER"
+                    ? "Los clientes registrados aparecerán aquí."
+                    : "Los usuarios registrados aparecerán aquí."
+                }
               />
             )}
           </section>

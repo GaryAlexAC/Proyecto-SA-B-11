@@ -105,6 +105,18 @@ function jsonBody(value: unknown) {
   return JSON.stringify(value);
 }
 
+function accountId(value: string) {
+  const compact = value.trim().replace(/[\s-]/g, "");
+  if (!/^[a-f\d]{32}$/i.test(compact)) return value.trim();
+  return [
+    compact.slice(0, 8),
+    compact.slice(8, 12),
+    compact.slice(12, 16),
+    compact.slice(16, 20),
+    compact.slice(20),
+  ].join("-");
+}
+
 function customerForm(input: CustomerInput, identityPhoto?: File) {
   const form = new FormData();
   Object.entries(input).forEach(([key, value]) => form.append(key, value));
@@ -219,7 +231,12 @@ export const api = {
       "/api/transactions",
       {
         method: "POST",
-        body: jsonBody({ sourceAccount, targetAccount, amount, customerId }),
+        body: jsonBody({
+          sourceAccount: accountId(sourceAccount),
+          targetAccount: accountId(targetAccount),
+          amount,
+          customerId,
+        }),
       },
       { idempotent: true },
     );
@@ -259,7 +276,10 @@ export const api = {
       "/api/payments",
       {
         method: "POST",
-        body: jsonBody(input),
+        body: jsonBody({
+          ...input,
+          sourceAccountId: accountId(input.sourceAccountId),
+        }),
       },
       { idempotent: true },
     );
