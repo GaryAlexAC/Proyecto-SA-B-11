@@ -178,9 +178,7 @@ export function StatusBadge({
     | TransactionStatus
     | PaymentStatus;
 }) {
-  const success = ["ACTIVE", "VERIFIED", "COMPLETED", "APPROVED"].includes(
-    status,
-  );
+  const success = ["ACTIVE", "VERIFIED", "APPROVED"].includes(status);
   const danger = ["BLOCKED", "FAILED", "REJECTED"].includes(status);
   return (
     <span
@@ -208,7 +206,6 @@ export function statusLabel(status: string) {
     PENDING_KYC: "Validando KYC",
     VERIFIED: "Verificado",
     PROCESSING: "Procesando",
-    COMPLETED: "Completada",
     FAILED: "Fallida",
     COMPENSATING: "Compensando",
     APPROVED: "Aprobado",

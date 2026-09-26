@@ -7,7 +7,7 @@ export type TransactionStatus =
   | "PENDING_KYC"
   | "PENDING"
   | "PROCESSING"
-  | "COMPLETED"
+  | "APPROVED"
   | "FAILED"
   | "COMPENSATING";
 export type PaymentStatus = "PENDING" | "APPROVED" | "REJECTED" | "PROCESSING";
@@ -72,6 +72,8 @@ export interface Account {
   customerId: string;
   type: AccountType;
   balance: Money;
+  minimumBalance: Money;
+  transactionFee: Money;
   status: AccountStatus;
   lastActivity: string;
   createdAt: string;
