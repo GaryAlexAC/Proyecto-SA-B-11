@@ -71,9 +71,7 @@ jobs:
           node-version: "22"
           cache: "npm"
       - run: npm ci
-      - run: npm run build --workspaces --if-present
-      - name: Build frontend
-        run: cd frontend && npm ci && npm run build
+      - run: npm run build
 
   test:
     name: Test
