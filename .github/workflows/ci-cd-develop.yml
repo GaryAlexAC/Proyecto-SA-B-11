@@ -34,32 +34,40 @@ jobs:
               - 'packages/observability/**'
               - 'package.json'
               - 'package-lock.json'
+              - '.github/workflows/**'
             account-service:
               - 'apps/account-service/**'
               - 'packages/observability/**'
               - 'package.json'
               - 'package-lock.json'
+              - '.github/workflows/**'
             customer-service:
               - 'apps/customer-service/**'
               - 'packages/observability/**'
               - 'package.json'
               - 'package-lock.json'
+              - '.github/workflows/**'
             transaction-service:
               - 'apps/transaction-service/**'
               - 'packages/observability/**'
               - 'package.json'
               - 'package-lock.json'
+              - '.github/workflows/**'
             payment-service:
               - 'apps/payment-service/**'
               - 'packages/observability/**'
               - 'package.json'
               - 'package-lock.json'
+              - '.github/workflows/**'
             notification-service:
               - 'apps/notification-service/**'
               - 'packages/observability/**'
               - 'package.json'
               - 'package-lock.json'
-            frontend: 'frontend/**'
+              - '.github/workflows/**'
+            frontend:
+              - 'frontend/**'
+              - '.github/workflows/**'
 
   build:
     name: Build
