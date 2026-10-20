@@ -93,6 +93,7 @@ jobs:
           cache: "npm"
       - run: npm ci
       - run: npm run build --workspace=packages/observability
+      - run: npm run prebuild --workspaces --if-present
       - run: npm run test --workspaces --if-present
 
   docker-build-push:
