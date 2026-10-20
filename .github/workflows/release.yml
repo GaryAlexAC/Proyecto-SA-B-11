@@ -11,6 +11,9 @@ on:
 env:
   REGISTRY: ${{ secrets.REGISTRY_URL }}
 
+permissions:
+  contents: write
+
 jobs:
   # ──────────────────────────────────────
   # Determinar la versión del release

@@ -142,8 +142,8 @@ export function TransactionsPage() {
     setMessage("");
     try {
       const created = await api.createTransaction(
-        sourceAccount.trim(),
-        targetAccount.trim(),
+        sourceAccount.trim().toLowerCase(),
+        targetAccount.trim().toLowerCase(),
         Number(amount),
         isCashier ? customerId.trim() : undefined,
       );

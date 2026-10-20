@@ -38,13 +38,25 @@ export function DashboardPage({
               setTransactions(transactionData);
             }
           })
-        : api.listCustomers().then((data) => {
+        : api.listCustomers().then(async (data) => {
             if (active) {
               setCustomers(
                 session!.user.role === "CASHIER"
                   ? data.filter((customer) => customer.role === "CLIENT")
                   : data,
               );
+              // Fetch transactions for all clients if ADMIN to show in the system log
+              if (session!.user.role === "ADMIN") {
+                const clients = data.filter(c => c.role === "CLIENT");
+                const allTrans = await Promise.all(
+                  clients.map(c => api.getTransactions(c.id).catch(() => []))
+                );
+                if (active) {
+                  setTransactions(
+                    allTrans.flat().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                  );
+                }
+              }
             }
           });
     load
@@ -243,6 +255,51 @@ export function DashboardPage({
               />
             )}
           </section>
+
+          {user.role === "ADMIN" && (
+            <section className="content-card" style={{ marginTop: "24px" }}>
+              <div className="section-heading">
+                <div>
+                  <span className="overline">Auditoría</span>
+                  <h2>Historial Global de Transacciones</h2>
+                </div>
+              </div>
+              
+              {transactions.length > 0 ? (
+                <div className="table-responsive">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Fecha</th>
+                        <th>Referencia</th>
+                        <th>Origen</th>
+                        <th>Destino</th>
+                        <th style={{ textAlign: "right" }}>Monto</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {transactions.slice(0, 30).map((tx) => (
+                        <tr key={tx.id}>
+                          <td>{formatDate(tx.createdAt)}</td>
+                          <td><code>{tx.id.split("-")[0]}</code></td>
+                          <td><code>{tx.sourceAccountId?.slice(-8) ?? "N/A"}</code></td>
+                          <td><code>{tx.targetAccountId?.slice(-8) ?? "N/A"}</code></td>
+                          <td style={{ textAlign: "right", color: "var(--color-primary-base)" }}>
+                            {formatMoney(Number(tx.amount))}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <EmptyState
+                  title="Sin movimientos"
+                  detail="El log del sistema está vacío."
+                />
+              )}
+            </section>
+          )}
         </>
       )}
     </div>

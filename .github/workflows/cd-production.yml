@@ -18,6 +18,9 @@ jobs:
     environment: production  # Requiere aprobación manual en GitHub (recomendado)
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Azure Login
         uses: azure/login@v2
@@ -52,20 +55,24 @@ jobs:
           mkdir -p k8s/prod-infra
           cp k8s/infra/*.yaml k8s/prod-infra/
           
-          # Separar la base de datos de 'dev' reemplazando el esquema public por prod
-          # y evitar que el frontend de prod apunte al backend de dev o viceversa
+          # Separar la base de datos de 'dev' → esquema prod
           sed -i 's/schema=public/schema=prod/g' k8s/prod-infra/*.yaml
+          
+          # Cambiar el nodePort del api-gateway-external para evitar colisión con dev (30000)
+          sed -i 's/nodePort: 30000/nodePort: 30001/g' k8s/prod-infra/api-gateway.yaml
+          
+          # Cambiar la URL de activación de correos de dev a prod
+          sed -i 's|http://9.169.131.155/|http://130.213.247.56/|g' k8s/prod-infra/customer-service.yaml
+          
+          # Pre-inyectar la imagen real del ACR en los YAMLs ANTES de aplicar
+          # Esto evita que los pods intenten jalar la imagen placeholder durante el rolling update
+          for service in api-gateway account-service customer-service transaction-service payment-service notification-service frontend; do
+            sed -i "s|image: bank-usac/${service}:.*|image: ${{ env.REGISTRY }}/${service}:${VERSION}|g" k8s/prod-infra/${service}.yaml
+          done
           
           for service in api-gateway account-service customer-service transaction-service payment-service notification-service frontend; do
             echo "🚀 Actualizando $service a versión $VERSION..."
-            
-            # 1. Aplicar la infraestructura (crea el servicio/deployment si no existe)
             kubectl apply -f k8s/prod-infra/${service}.yaml -n prod
-            
-            # 2. Actualizar la imagen a la nueva versión
-            kubectl set image deployment/$service \
-              $service=${{ env.REGISTRY }}/$service:$VERSION \
-              -n prod
           done
 
       - name: Verificar rollout exitoso

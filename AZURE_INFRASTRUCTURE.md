@@ -82,30 +82,94 @@ az aks get-credentials --resource-group BankUsacRG_Fase2 --name bank-usac-cluste
 
 ## 6. Flujo de Trabajo (Entornos) y Buenas Prácticas
 
-Actualmente, el pipeline que arreglamos hoy se despliega en el **ambiente de desarrollo (`dev`)**.
-Como Arquitecto de Software, este es el flujo correcto que tu equipo debe seguir:
+El proyecto tiene **dos ambientes aislados** en el mismo clúster de Kubernetes:
+
+| Namespace | Descripción | URL de acceso |
+|---|---|---|
+| `dev` | Desarrollo y pruebas internas | Acceso por `port-forward` (sin IP pública) |
+| `prod` | Producción — usuarios reales | `http://130.213.247.56` |
 
 1. **Desarrollo:** Los programadores trabajan en ramas como `feature/X` o `fix/Y`.
-2. **Integración (El pipeline de hoy):** Cuando hacen *Pull Request* y mezclan su código hacia `develop`, el pipeline `ci-cd-develop.yml` entra en acción, compila, y despliega automáticamente en el **Namespace `dev`** de Kubernetes. Aquí es donde los QA o ustedes mismos prueban que todo funcione.
-3. **Paso a Producción (Release):** Cuando la rama `develop` está estable y quieren lanzar una versión final al público, el líder técnico crea un **Release/Tag** (ej. `v1.0.0`) o hace un merge a `main`. 
-   - El proyecto tiene archivos preparados para esto (`release.yml` y `cd-production.yml`). 
-   - Estos pipelines toman la versión estable y la despliegan en el **Namespace `prod`**, un entorno aislado para los usuarios reales, garantizando que el desarrollo del día a día no rompa la aplicación principal.
+2. **Integración:** Al hacer merge a `develop`, el pipeline `ci-cd-develop.yml` compila y despliega automáticamente en el **Namespace `dev`**.
+3. **Release:** Para publicar una versión oficial, se crea un Tag de Git (`v1.0.1`, etc). El pipeline `release.yml` compila y publica todas las imágenes en el ACR con ese número de versión.
+4. **Producción:** Al hacer merge de `develop` a `main`, el pipeline `cd-production.yml` despliega las imágenes versionadas en el **Namespace `prod`**.
 
-## 7. ¿Cómo probarlo? (Ver la app funcionando)
+> **Nota importante sobre recursos:** El clúster tiene 2 vCPUs disponibles. Si se necesita que `dev` y `prod` corran a la vez, escalar a 0 los servicios de `dev` que no se estén usando activamente:
+> ```bash
+> kubectl scale deployment/transaction-service deployment/payment-service deployment/notification-service --replicas=0 -n dev
+> # Para reactivarlos:
+> kubectl scale deployment/transaction-service deployment/payment-service deployment/notification-service --replicas=1 -n dev
+> ```
 
-El microservicio `frontend` está configurado como un `LoadBalancer`, lo que significa que Azure le asigna una **IP Pública de internet**. Para encontrarla y entrar a la aplicación, abre tu Azure Cloud Shell, asegúrate de haber corrido el comando de `az aks get-credentials` (arriba), y luego ejecuta:
+## 7. Acceso a los Entornos
 
-```bash
-kubectl get svc frontend -n dev
+### Producción (para usuarios finales)
+```
+URL: http://130.213.247.56
+Admin: admin / ChangeMe123
 ```
 
-En la tabla que aparecerá, busca la columna **`EXTERNAL-IP`**. Copia el valor
-asignado actualmente y ábrelo en el navegador mediante `http://<EXTERNAL-IP>`.
-La dirección puede cambiar si se recrea el Service, por lo que no debe fijarse en
-la documentación ni en el frontend.
-
-**Salida en consola:**
+### Dev (para el equipo de desarrollo)
 ```bash
-NAME       TYPE           CLUSTER-IP   EXTERNAL-IP     PORT(S)        AGE
-frontend   LoadBalancer   <cluster-ip> <external-ip>   80:<node-port>/TCP
+# Acceso temporal vía port-forward:
+kubectl port-forward svc/frontend 8080:80 -n dev
+# Luego abrir: http://localhost:8080
 ```
+
+### Comandos útiles para diagnosticar Kubernetes
+
+**Reemplazar `dev` por `prod` según el namespace que necesites:**
+```bash
+# Ver pods
+kubectl get pods -n dev
+kubectl get pods -n prod
+
+# Ver logs de un servicio
+kubectl logs -n dev -l app=customer-service --tail=50
+
+# Reiniciar un servicio
+kubectl rollout restart deployment/customer-service -n dev
+
+# Ver estado detallado de un pod
+kubectl describe pod -n dev -l app=customer-service
+```
+
+## 8. Secretos en Kubernetes
+
+Algunos servicios requieren secretos que NO están en los YAML (por seguridad). Si recrean los namespaces, deben volver a crear:
+
+```bash
+# Credenciales de correo (notification-service) — aplicar en AMBOS namespaces
+kubectl create secret generic email-credentials \
+  --from-literal=email-user="gabrielchinchilla.sa.2024@gmail.com" \
+  --from-literal=email-app-pass="fgimglcbnnzwdefq" \
+  -n dev
+
+kubectl create secret generic email-credentials \
+  --from-literal=email-user="gabrielchinchilla.sa.2024@gmail.com" \
+  --from-literal=email-app-pass="fgimglcbnnzwdefq" \
+  -n prod
+```
+
+## 9. Conexión a la Base de Datos (PostgreSQL)
+
+```
+Host:     20.94.62.20
+Puerto:   5432
+Usuario:  bankadmin
+Password: SA_Grupo11
+
+Bases de datos:
+  - db_customer   (customer-service)
+  - db_account    (account-service)
+  - db_transaction (transaction-service)
+  - db_payment    (payment-service)
+  - db_notification (notification-service)
+
+String de conexión (ejemplo customer-service - dev):
+postgresql://bankadmin:SA_Grupo11@20.94.62.20:5432/db_customer?schema=public
+
+String de conexión (ejemplo customer-service - prod):
+postgresql://bankadmin:SA_Grupo11@20.94.62.20:5432/db_customer?schema=prod
+```
+
