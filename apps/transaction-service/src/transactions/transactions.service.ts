@@ -7,6 +7,7 @@ import {
 import { createHash } from 'node:crypto';
 import { firstValueFrom } from 'rxjs';
 import { timeout } from 'rxjs/operators';
+import { getMeter } from '@bank-usac/observability';
 import type { AuthenticatedUser, UserRole } from '../auth/jwt-auth.service.js';
 import { MessagingService } from '../messaging/messaging.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -36,6 +37,21 @@ export interface TransactionFilters {
 @Injectable()
 export class TransactionsService {
   private readonly logger = new Logger(TransactionsService.name);
+  private readonly successfulTransactions = getMeter(
+    'transaction-service',
+  ).createCounter('transaction_success_total', {
+    description: 'Transferencias aprobadas',
+  });
+  private readonly failedTransactions = getMeter('transaction-service').createCounter(
+    'transaction_failures_total',
+    { description: 'Transferencias fallidas' },
+  );
+  private readonly transactionLatency = getMeter(
+    'transaction-service',
+  ).createHistogram('transaction_duration_ms', {
+    description: 'Duración completa del flujo de transferencia',
+    unit: 'ms',
+  });
 
   constructor(
     private readonly prisma: PrismaService,
@@ -259,6 +275,7 @@ export class TransactionsService {
       if (result.count !== 1) return null;
 
       await this.enqueue(tx, events);
+      this.recordStatusMetrics(transaction, status);
       return tx.transaction.findUniqueOrThrow({ where: { id: transaction.id } });
     });
   }
@@ -310,6 +327,7 @@ export class TransactionsService {
       if (result.count !== 1) return null;
 
       await this.enqueue(tx, events);
+      this.recordStatusMetrics(transaction, TransactionStatus.FAILED);
       return tx.transaction.findUniqueOrThrow({ where: { id: transaction.id } });
     });
   }
@@ -329,6 +347,27 @@ export class TransactionsService {
           payload: event.payload as Prisma.InputJsonValue,
         },
       });
+    }
+  }
+
+  private recordStatusMetrics(
+    transaction: { createdAt: Date; operation: string },
+    status: TransactionStatus,
+  ) {
+    if (status === TransactionStatus.APPROVED) {
+      this.successfulTransactions.add(1, { operation: transaction.operation });
+    }
+    if (status === TransactionStatus.FAILED) {
+      this.failedTransactions.add(1, { operation: transaction.operation });
+    }
+    if (
+      status === TransactionStatus.APPROVED ||
+      status === TransactionStatus.FAILED
+    ) {
+      this.transactionLatency.record(
+        Math.max(0, Date.now() - transaction.createdAt.getTime()),
+        { operation: transaction.operation, status },
+      );
     }
   }
 

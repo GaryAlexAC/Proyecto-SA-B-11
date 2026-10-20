@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { getTraceContext } from '@bank-usac/observability';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 // Mapa de clasificación: evento → severidad (Proyecto 2 - RF-NOT-02)
@@ -15,6 +16,8 @@ const EVENT_SEVERITY_MAP: Record<string, 'INFO' | 'WARNING' | 'ERROR'> = {
 
   // WARNING: rechazos por reglas de negocio (no son errores del sistema)
   CustomerBlocked: 'WARNING',
+  AccountAnomalyDetected: 'WARNING',
+  SLOAlert: 'WARNING',
   FundsReservationRejected: 'WARNING',
   PaymentRejected: 'WARNING',
   KYCRejected: 'WARNING',
@@ -66,6 +69,8 @@ export class AuditService {
           producer,
           payload,
           severity,
+          traceId: getTraceContext()?.traceId ?? null,
+          spanId: getTraceContext()?.spanId ?? null,
           occurredAt: eventData.occurredAt
             ? new Date(eventData.occurredAt)
             : new Date(),
@@ -82,6 +87,24 @@ export class AuditService {
         error,
       );
     }
+  }
+
+  async query(filters: {
+    correlationId?: string;
+    traceId?: string;
+    producer?: string;
+    severity?: 'INFO' | 'WARNING' | 'ERROR';
+  }) {
+    return this.prisma.auditLog.findMany({
+      where: {
+        correlationId: filters.correlationId || undefined,
+        traceId: filters.traceId || undefined,
+        producer: filters.producer || undefined,
+        severity: filters.severity || undefined,
+      },
+      orderBy: { occurredAt: 'desc' },
+      take: 100,
+    });
   }
 
   async sendEmailNotification(to: string, subject: string, _message: string) {

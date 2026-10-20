@@ -440,6 +440,16 @@ function TransactionSummary({ transaction }: { transaction: Transaction }) {
             <dd>{transaction.failReason}</dd>
           </div>
         )}
+        <div>
+          <dt>Correlation ID</dt>
+          <dd><code>{transaction.correlationId}</code></dd>
+        </div>
+        {transaction.observability?.traceId && (
+          <div>
+            <dt>Trace ID</dt>
+            <dd><code>{transaction.observability.traceId}</code></dd>
+          </div>
+        )}
       </dl>
     </div>
   );

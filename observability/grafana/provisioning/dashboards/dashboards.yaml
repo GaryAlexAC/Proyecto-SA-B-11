@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: Bank USAC
+    orgId: 1
+    folder: Bank USAC
+    type: file
+    disableDeletion: false
+    editable: false
+    options:
+      path: /var/lib/grafana/dashboards

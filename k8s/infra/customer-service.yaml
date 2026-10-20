@@ -13,11 +13,18 @@ spec:
     metadata:
       labels:
         app: customer-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: "9464"
     spec:
       containers:
       - name: customer-service
         image: bank-usac/customer-service:v1.0.0
         imagePullPolicy: Always
+        envFrom:
+        - configMapRef:
+            name: observability-env
         ports:
         - containerPort: 3000
         env:
@@ -77,3 +84,6 @@ spec:
     - protocol: TCP
       port: 3001
       targetPort: 3001
+    - name: metrics
+      port: 9464
+      targetPort: 9464

@@ -14,6 +14,23 @@ export type PaymentStatus = "PENDING" | "APPROVED" | "REJECTED" | "PROCESSING";
 export type PaymentType = "INTERNAL" | "EXTERNAL";
 export type Money = number | string;
 
+export interface OperationObservability {
+  correlationId: string | null;
+  traceId: string | null;
+}
+
+export interface AuditRecord {
+  id: number;
+  eventId: string;
+  eventType: string;
+  correlationId: string;
+  producer: string;
+  severity: "INFO" | "WARNING" | "ERROR";
+  traceId: string | null;
+  spanId: string | null;
+  occurredAt: string;
+}
+
 export interface SessionUser {
   customerId: string;
   username: string;
@@ -93,6 +110,7 @@ export interface Transaction {
   failReason: string | null;
   createdAt: string;
   updatedAt: string;
+  observability?: OperationObservability;
 }
 
 export interface Payment {

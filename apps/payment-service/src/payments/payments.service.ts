@@ -5,10 +5,33 @@ import { Prisma, Payment, PaymentStatus, PaymentType } from '@prisma/client-paym
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { firstValueFrom, TimeoutError } from 'rxjs';
 import { timeout } from 'rxjs/operators';
+import { injectTraceContext } from '@bank-usac/observability';
+import { getMeter } from '@bank-usac/observability';
+
+export interface PaymentSimulationConfig {
+  failureRatePercent: number;
+  timeoutRatePercent: number;
+  latencyMs: number;
+  timeoutMs: number;
+}
 
 @Injectable()
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
+  private simulation: PaymentSimulationConfig = {
+    failureRatePercent: Number(process.env.PAYMENT_FAILURE_RATE_PERCENT ?? 20),
+    timeoutRatePercent: Number(process.env.PAYMENT_TIMEOUT_RATE_PERCENT ?? 10),
+    latencyMs: Number(process.env.PAYMENT_LATENCY_MS ?? 0),
+    timeoutMs: Number(process.env.PAYMENT_TIMEOUT_MS ?? 3_000),
+  };
+  private readonly externalFailures = getMeter('payment-service').createCounter(
+    'payment_external_failures_total',
+    { description: 'Fallos del sistema externo simulado' },
+  );
+  private readonly externalLatency = getMeter('payment-service').createHistogram(
+    'payment_external_latency_ms',
+    { description: 'Latencia del sistema externo simulado', unit: 'ms' },
+  );
 
   constructor(
     private readonly prisma: PrismaService,
@@ -76,10 +99,23 @@ export class PaymentsService {
     let externalStatus: PaymentStatus = PaymentStatus.PENDING;
     let externalReason: string | undefined;
 
+    const simulationStartedAt = Date.now();
+    if (this.simulation.latencyMs > 0) {
+      await this.delay(this.simulation.latencyMs);
+    }
+    this.externalLatency.record(Date.now() - simulationStartedAt);
+
     const rand = Math.random();
-    if (rand < 0.10) {
+    const timeoutLimit = this.simulation.timeoutRatePercent / 100;
+    const failureLimit =
+      timeoutLimit + this.simulation.failureRatePercent / 100;
+    if (rand < timeoutLimit) {
+      if (this.simulation.timeoutMs > 0) {
+        await this.delay(this.simulation.timeoutMs);
+      }
+      this.externalFailures.add(1, { failure_type: 'timeout' });
       this.logger.error(`Simulated external timeout for payment ${correlationId}`);
-      this.transactionClient.emit('PaymentTimeout', {
+      this.transactionClient.emit('PaymentTimeout', injectTraceContext({
         eventId: `${correlationId}:timeout`,
         correlationId,
         eventType: 'PaymentTimeout',
@@ -88,10 +124,11 @@ export class PaymentsService {
            reason: 'External service timeout simulated',
            severity: 'ERROR',
         }
-      });
+      }));
       externalStatus = PaymentStatus.REJECTED;
       externalReason = 'Timeout de servicio externo simulado';
-    } else if (rand < 0.30) {
+    } else if (rand < failureLimit) {
+      this.externalFailures.add(1, { failure_type: 'rejection' });
       this.logger.warn(`Simulated external rejection for payment ${correlationId}`);
       externalStatus = PaymentStatus.REJECTED;
       externalReason = 'Rechazo de servicio externo simulado';
@@ -220,6 +257,32 @@ export class PaymentsService {
     });
   }
 
+  getSimulationConfig() {
+    return { ...this.simulation };
+  }
+
+  updateSimulationConfig(input: Partial<PaymentSimulationConfig>) {
+    const next = { ...this.simulation, ...input };
+    if (
+      !Number.isFinite(next.failureRatePercent) ||
+      !Number.isFinite(next.timeoutRatePercent) ||
+      next.failureRatePercent < 0 ||
+      next.timeoutRatePercent < 0 ||
+      next.failureRatePercent + next.timeoutRatePercent > 100 ||
+      !Number.isInteger(next.latencyMs) ||
+      !Number.isInteger(next.timeoutMs) ||
+      next.latencyMs < 0 ||
+      next.timeoutMs < 0
+    ) {
+      throw new RpcException({
+        statusCode: 400,
+        error: 'Configuración de simulación inválida',
+      });
+    }
+    this.simulation = next;
+    return this.getSimulationConfig();
+  }
+
   async completePayment(correlationId: string, eventId: string) {
     return this.updatePaymentStatus(correlationId, PaymentStatus.APPROVED, eventId);
   }
@@ -254,5 +317,9 @@ export class PaymentsService {
       });
       return payment;
     });
+  }
+
+  private delay(milliseconds: number) {
+    return new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
   }
 }

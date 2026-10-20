@@ -11,11 +11,18 @@ spec:
     metadata:
       labels:
         app: payment-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: "9464"
     spec:
       containers:
       - name: payment-service
         image: bank-usac/payment-service:v1.0.0
         imagePullPolicy: Always
+        envFrom:
+        - configMapRef:
+            name: observability-env
         env:
         - name: DATABASE_URL
           value: "postgresql://bankadmin:SA_Grupo11@10.0.2.4:5432/db_payment?schema=public"
@@ -52,5 +59,8 @@ spec:
   ports:
   - port: 3000
     targetPort: 3000
+  - name: metrics
+    port: 9464
+    targetPort: 9464
   selector:
     app: payment-service

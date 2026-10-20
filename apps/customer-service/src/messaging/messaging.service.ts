@@ -8,6 +8,7 @@ import {
 import { ClientProxy } from '@nestjs/microservices';
 import { Prisma } from '../generated/prisma/index.js';
 import { firstValueFrom } from 'rxjs';
+import { injectTraceContext } from '@bank-usac/observability';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 export type CustomerEventType =
@@ -63,7 +64,7 @@ export class MessagingService implements OnApplicationBootstrap, OnModuleDestroy
       eventType,
       correlationId,
       causationId: options.causationId,
-      payload: payload as Prisma.InputJsonValue,
+      payload: injectTraceContext(payload) as Prisma.InputJsonValue,
     };
   }
 
@@ -88,7 +89,7 @@ export class MessagingService implements OnApplicationBootstrap, OnModuleDestroy
             ? this.transactionClient
             : this.notificationClient;
           await firstValueFrom(
-            client.emit(event.eventType, {
+            client.emit(event.eventType, injectTraceContext({
               eventId: event.id,
               eventType: event.eventType,
               eventVersion: event.eventVersion,
@@ -97,7 +98,11 @@ export class MessagingService implements OnApplicationBootstrap, OnModuleDestroy
               causationId: event.causationId,
               producer: event.producer,
               payload: event.payload,
-            }),
+              traceparent:
+                event.payload && typeof event.payload === 'object'
+                  ? (event.payload as { traceparent?: string }).traceparent
+                  : undefined,
+            })),
           );
           await this.prisma.outboxEvent.update({
             where: { id: event.id },

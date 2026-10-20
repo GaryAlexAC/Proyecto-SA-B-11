@@ -47,6 +47,18 @@ jobs:
       - name: Desplegar infraestructura base (RabbitMQ)
         run: kubectl apply -f k8s/infra/rabbitmq-deployment.yaml -n prod
 
+      - name: Desplegar stack de observabilidad
+        run: |
+          kubectl apply -f k8s/observability/grafana.yaml -n prod
+          kubectl apply -f k8s/observability/stack.yaml -n prod
+
+      - name: Verificar rollout de observabilidad
+        run: |
+          for service in otel-collector prometheus alertmanager rabbitmq-exporter tempo loki grafana; do
+            kubectl rollout status deployment/$service -n prod --timeout=180s
+          done
+
+
       - name: Rolling Update en producción
         run: |
           VERSION=${{ steps.get_version.outputs.version }}

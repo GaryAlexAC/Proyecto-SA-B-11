@@ -1,10 +1,18 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import {
+  BrokerTraceInterceptor,
+  startObservability,
+  StructuredLogger,
+} from '@bank-usac/observability';
 import { AppModule } from './app.module.js';
 
 async function bootstrap() {
+  await startObservability('customer-service');
   const app = await NestFactory.create(AppModule);
+  app.useLogger(new StructuredLogger('customer-service'));
+  app.useGlobalInterceptors(new BrokerTraceInterceptor('customer-service'));
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

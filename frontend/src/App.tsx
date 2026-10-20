@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "./auth";
 import { AccountsPage } from "./pages/AccountsPage";
+import { AuditPage } from "./pages/AuditPage";
 import { ActivationPage } from "./pages/ActivationPage";
 import { CustomersPage } from "./pages/CustomersPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -16,8 +17,9 @@ export type PageName =
   | "customers"
   | "accounts"
   | "transactions"
-  | "payments"
-  | "profile";
+   | "payments"
+   | "profile"
+   | "audit";
 
 interface NavigationItem {
   id: PageName;
@@ -56,6 +58,12 @@ const navigation: NavigationItem[] = [
     label: "Pagos",
     icon: "payment",
     roles: ["CASHIER", "CLIENT"],
+  },
+  {
+    id: "audit",
+    label: "Auditoría",
+    icon: "search",
+    roles: ["ADMIN", "CASHIER"],
   },
   {
     id: "profile",
@@ -97,6 +105,8 @@ export function App() {
         return <TransactionsPage />;
       case "payments":
         return <PaymentsPage />;
+      case "audit":
+        return <AuditPage />;
       case "profile":
         return <ProfilePage />;
       default:

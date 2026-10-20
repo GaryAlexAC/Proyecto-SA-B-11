@@ -29,12 +29,36 @@ jobs:
         id: filter
         with:
           filters: |
-            api-gateway: 'apps/api-gateway/**'
-            account-service: 'apps/account-service/**'
-            customer-service: 'apps/customer-service/**'
-            transaction-service: 'apps/transaction-service/**'
-            payment-service: 'apps/payment-service/**'
-            notification-service: 'apps/notification-service/**'
+            api-gateway:
+              - 'apps/api-gateway/**'
+              - 'packages/observability/**'
+              - 'package.json'
+              - 'package-lock.json'
+            account-service:
+              - 'apps/account-service/**'
+              - 'packages/observability/**'
+              - 'package.json'
+              - 'package-lock.json'
+            customer-service:
+              - 'apps/customer-service/**'
+              - 'packages/observability/**'
+              - 'package.json'
+              - 'package-lock.json'
+            transaction-service:
+              - 'apps/transaction-service/**'
+              - 'packages/observability/**'
+              - 'package.json'
+              - 'package-lock.json'
+            payment-service:
+              - 'apps/payment-service/**'
+              - 'packages/observability/**'
+              - 'package.json'
+              - 'package-lock.json'
+            notification-service:
+              - 'apps/notification-service/**'
+              - 'packages/observability/**'
+              - 'package.json'
+              - 'package-lock.json'
             frontend: 'frontend/**'
 
   build:
@@ -155,6 +179,18 @@ jobs:
 
       - name: Desplegar infraestructura base (RabbitMQ)
         run: kubectl apply -f k8s/infra/rabbitmq-deployment.yaml -n dev
+
+      - name: Desplegar stack de observabilidad
+        run: |
+          kubectl apply -f k8s/observability/grafana.yaml -n dev
+          kubectl apply -f k8s/observability/stack.yaml -n dev
+
+      - name: Verificar rollout de observabilidad
+        run: |
+          for service in otel-collector prometheus alertmanager rabbitmq-exporter tempo loki grafana; do
+            kubectl rollout status deployment/$service -n dev --timeout=180s
+          done
+
 
       - name: Construir lista de servicios modificados
         id: modified-services

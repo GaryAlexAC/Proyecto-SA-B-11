@@ -8,6 +8,7 @@ import {
 import { ClientProxy } from '@nestjs/microservices';
 import { Prisma } from '@prisma/client-account';
 import { firstValueFrom } from 'rxjs';
+import { injectTraceContext } from '@bank-usac/observability';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 export type AccountEventType =
@@ -33,6 +34,8 @@ export class MessagingService implements OnApplicationBootstrap, OnModuleDestroy
     private readonly prisma: PrismaService,
     @Inject('TRANSACTION_SERVICE')
     private readonly transactionClient: ClientProxy,
+    @Inject('NOTIFICATION_SERVICE')
+    private readonly notificationClient: ClientProxy,
   ) {}
 
   onApplicationBootstrap() {
@@ -42,7 +45,10 @@ export class MessagingService implements OnApplicationBootstrap, OnModuleDestroy
 
   async onModuleDestroy() {
     if (this.timer) clearInterval(this.timer);
-    await this.transactionClient.close();
+    await Promise.all([
+      this.transactionClient.close(),
+      this.notificationClient.close(),
+    ]);
   }
 
   eventData(
@@ -56,12 +62,23 @@ export class MessagingService implements OnApplicationBootstrap, OnModuleDestroy
       eventType,
       correlationId,
       causationId: options.causationId,
-      payload: payload as Prisma.InputJsonValue,
+      payload: injectTraceContext(payload) as Prisma.InputJsonValue,
     };
   }
 
   async publish(eventType: string, envelope: Record<string, unknown>) {
-    await firstValueFrom(this.transactionClient.emit(eventType, envelope));
+    await firstValueFrom(
+      this.transactionClient.emit(eventType, injectTraceContext(envelope)),
+    );
+  }
+
+  async publishNotification(
+    eventType: string,
+    envelope: Record<string, unknown>,
+  ) {
+    await firstValueFrom(
+      this.notificationClient.emit(eventType, injectTraceContext(envelope)),
+    );
   }
 
   async flush() {
@@ -82,7 +99,7 @@ export class MessagingService implements OnApplicationBootstrap, OnModuleDestroy
       for (const event of events) {
         try {
           await firstValueFrom(
-            this.transactionClient.emit(event.eventType, {
+            this.transactionClient.emit(event.eventType, injectTraceContext({
               eventId: event.id,
               eventType: event.eventType,
               eventVersion: event.eventVersion,
@@ -91,7 +108,11 @@ export class MessagingService implements OnApplicationBootstrap, OnModuleDestroy
               causationId: event.causationId,
               producer: event.producer,
               payload: event.payload,
-            }),
+              traceparent:
+                event.payload && typeof event.payload === 'object'
+                  ? (event.payload as { traceparent?: string }).traceparent
+                  : undefined,
+            })),
           );
           await this.prisma.outboxEvent.update({
             where: { id: event.id },

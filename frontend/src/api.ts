@@ -1,6 +1,7 @@
 import type {
   Account,
   AccountType,
+  AuditRecord,
   AuthSession,
   Customer,
   CustomerInput,
@@ -111,6 +112,15 @@ async function request<T>(
     throw new ApiError(errorMessage(body), response.status, body);
   }
   if (identity) idempotencyKeys.delete(identity);
+  if (body && typeof body === "object" && !Array.isArray(body)) {
+    return {
+      ...(body as Record<string, unknown>),
+      observability: {
+        correlationId: response.headers.get("X-Correlation-Id"),
+        traceId: response.headers.get("X-Trace-Id"),
+      },
+    } as T;
+  }
   return body as T;
 }
 
@@ -306,6 +316,18 @@ export const api = {
 
   getServices() {
     return request<Service[]>("/api/payments/services");
+  },
+
+  searchAudit(filters: {
+    correlationId?: string;
+    traceId?: string;
+    severity?: "INFO" | "WARNING" | "ERROR";
+  }) {
+    const query = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) query.set(key, value);
+    });
+    return request<AuditRecord[]>(`/api/audit?${query.toString()}`);
   },
 };
 

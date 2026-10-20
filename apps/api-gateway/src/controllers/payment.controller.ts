@@ -5,6 +5,7 @@ import {
   Headers,
   Inject,
   Param,
+  Patch,
   Post,
   Req,
 } from '@nestjs/common';
@@ -43,6 +44,36 @@ export class PaymentController {
   ) {
     return rpcToHttp(
       this.client.send('get_services', {
+        authorization,
+        correlationId: request.correlationId,
+      }),
+      'Payment Service',
+    );
+  }
+
+  @Get('simulation/config')
+  getSimulationConfig(
+    @Req() request: CorrelatedRequest,
+    @Headers('authorization') authorization?: string,
+  ) {
+    return rpcToHttp(
+      this.client.send('get_simulation_config', {
+        authorization,
+        correlationId: request.correlationId,
+      }),
+      'Payment Service',
+    );
+  }
+
+  @Patch('simulation/config')
+  updateSimulationConfig(
+    @Body() config: Record<string, unknown>,
+    @Req() request: CorrelatedRequest,
+    @Headers('authorization') authorization?: string,
+  ) {
+    return rpcToHttp(
+      this.client.send('update_simulation_config', {
+        config,
         authorization,
         correlationId: request.correlationId,
       }),
