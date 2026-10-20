@@ -59,6 +59,34 @@ export class PaymentsController {
     return this.paymentsService.getServices();
   }
 
+  @MessagePattern('get_simulation_config')
+  async getSimulationConfig(@Payload() data: AuthorizedMessage) {
+    await this.jwtAuth.authenticate(data.authorization, ['ADMIN']);
+    return this.paymentsService.getSimulationConfig();
+  }
+
+  @MessagePattern('update_simulation_config')
+  async updateSimulationConfig(
+    @Payload() data: AuthorizedMessage & { config: Record<string, unknown> },
+  ) {
+    await this.jwtAuth.authenticate(data.authorization, ['ADMIN']);
+    const config = data.config ?? {};
+    return this.paymentsService.updateSimulationConfig({
+      ...(config.failureRatePercent !== undefined
+        ? { failureRatePercent: Number(config.failureRatePercent) }
+        : {}),
+      ...(config.timeoutRatePercent !== undefined
+        ? { timeoutRatePercent: Number(config.timeoutRatePercent) }
+        : {}),
+      ...(config.latencyMs !== undefined
+        ? { latencyMs: Number(config.latencyMs) }
+        : {}),
+      ...(config.timeoutMs !== undefined
+        ? { timeoutMs: Number(config.timeoutMs) }
+        : {}),
+    });
+  }
+
 @EventPattern('PaymentTransactionCompleted')
   async handlePaymentTransactionCompleted(@Payload() data: any) {
     return this.paymentsService.completePayment(

@@ -14,6 +14,7 @@ import {
 } from '../generated/prisma/index.js';
 import { hash } from 'bcryptjs';
 import { randomInt } from 'node:crypto';
+import { getMeter } from '@bank-usac/observability';
 import { CurrentUser } from '../common/current-user.js';
 import { MessagingService } from '../messaging/messaging.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -47,6 +48,19 @@ interface KycValidationRequested {
 
 @Injectable()
 export class CustomersService {
+  private readonly verifiedCustomers = getMeter('customer-service').createCounter(
+    'customer_kyc_verified_total',
+    { description: 'Clientes aprobados por KYC' },
+  );
+  private readonly rejectedCustomers = getMeter('customer-service').createCounter(
+    'customer_kyc_rejected_total',
+    { description: 'Clientes rechazados por KYC' },
+  );
+  private readonly kycDuration = getMeter('customer-service').createHistogram(
+    'customer_kyc_duration_ms',
+    { description: 'Tiempo entre creación y resultado KYC', unit: 'ms' },
+  );
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly messaging: MessagingService,
@@ -366,6 +380,14 @@ export class CustomersService {
       });
 
       void this.messaging.flush();
+      if (dto.kycStatus === KycStatus.VERIFIED) {
+        this.verifiedCustomers.add(1);
+        this.kycDuration.record(
+          Math.max(0, Date.now() - new Date(updated.createdAt).getTime()),
+        );
+      } else if (dto.kycStatus === KycStatus.REJECTED) {
+        this.rejectedCustomers.add(1);
+      }
       return this.toPublic(updated);
     } catch (error) {
       return this.handleWriteError(

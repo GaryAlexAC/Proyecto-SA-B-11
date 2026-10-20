@@ -1,7 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { getMeter } from '@bank-usac/observability';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { AccountStatus, AccountType, Prisma } from '@prisma/client-account';
+import {
+  AccountOperation,
+  AccountStatus,
+  AccountType,
+  Prisma,
+} from '@prisma/client-account';
+import { MessagingService } from '../messaging/messaging.service.js';
 
 export interface AccountCommandResult {
   eventType: string;
@@ -20,8 +27,28 @@ const RESULT_SUFFIX: Record<string, string> = {
 @Injectable()
 export class AccountsService {
   private readonly logger = new Logger(AccountsService.name);
+  private readonly anomalyThreshold = Math.max(
+    1,
+    Number.parseInt(process.env.ACCOUNT_ANOMALY_THRESHOLD ?? '10', 10),
+  );
+  private readonly anomalyWindowMs =
+    Math.max(
+      1,
+      Number.parseInt(process.env.ACCOUNT_ANOMALY_WINDOW_MINUTES ?? '5', 10),
+    ) * 60_000;
+  private readonly transactionCounter = getMeter('account-service').createCounter(
+    'account_transactions_total',
+    { description: 'Operaciones sobre cuentas' },
+  );
+  private readonly anomalyCounter = getMeter('account-service').createCounter(
+    'account_anomalies_detected_total',
+    { description: 'Anomalías de frecuencia detectadas' },
+  );
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly messaging: MessagingService,
+  ) {}
 
   async createAccount(data: any) {
     this.logger.log(`Creating account for customer ${data.customerId}`);
@@ -63,7 +90,7 @@ export class AccountsService {
     eventId: string,
     customerId: string,
   ) {
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const alreadyProcessed = await tx.processedEvent.findUnique({
         where: { eventId },
       });
@@ -129,6 +156,15 @@ export class AccountsService {
       }
       return result;
     });
+    if (result.eventType === 'FundsReserved') {
+      await this.recordActivity(
+        sourceAccountId,
+        AccountOperation.DEBIT,
+        amount,
+        correlationId,
+      );
+    }
+    return result;
   }
 
   // Paso 2: Abono (Crédito)
@@ -139,7 +175,7 @@ export class AccountsService {
     correlationId: string,
     eventId: string,
   ) {
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const alreadyProcessed = await tx.processedEvent.findUnique({
         where: { eventId },
       });
@@ -185,6 +221,15 @@ export class AccountsService {
       }
       return result;
     });
+    if (result.eventType === 'DestinationCredited') {
+      await this.recordActivity(
+        targetAccountId,
+        AccountOperation.CREDIT,
+        amount,
+        correlationId,
+      );
+    }
+    return result;
   }
 
   // Paso 3 (Compensación): Reembolso (Rollback del Débito)
@@ -196,7 +241,7 @@ export class AccountsService {
     eventId: string,
     reason?: string,
   ) {
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const alreadyProcessed = await tx.processedEvent.findUnique({
         where: { eventId },
       });
@@ -229,6 +274,60 @@ export class AccountsService {
         `Refund applied (Compensating transaction): ${amount} to ${sourceAccountId} [corr: ${correlationId}]`,
       );
       return result;
+    });
+    if (result.eventType === 'FundsReleased') {
+      await this.recordActivity(
+        sourceAccountId,
+        AccountOperation.CREDIT,
+        amount,
+        correlationId,
+      );
+    }
+    return result;
+  }
+
+  private async recordActivity(
+    accountId: string,
+    operation: AccountOperation,
+    amount: number,
+    correlationId: string,
+  ) {
+    const account = await this.prisma.account.findUnique({
+      where: { id: accountId },
+      select: { type: true },
+    });
+    await this.prisma.accountActivity.create({
+      data: { accountId, operation, amount, correlationId },
+    });
+    this.transactionCounter.add(1, {
+      account_type: account?.type ?? 'UNKNOWN',
+      operation: operation.toLowerCase(),
+    });
+
+    const count = await this.prisma.accountActivity.count({
+      where: {
+        accountId,
+        occurredAt: { gte: new Date(Date.now() - this.anomalyWindowMs) },
+      },
+    });
+    if (count <= this.anomalyThreshold) return;
+
+    this.anomalyCounter.add(1, { operation: operation.toLowerCase() });
+    await this.messaging.publishNotification('AccountAnomalyDetected', {
+      eventId: `${correlationId}:account-anomaly:${accountId}:${Date.now()}`,
+      eventType: 'AccountAnomalyDetected',
+      eventVersion: 1,
+      occurredAt: new Date().toISOString(),
+      correlationId,
+      producer: 'account-service',
+      payload: {
+        accountId,
+        operation,
+        threshold: this.anomalyThreshold,
+        windowMinutes: this.anomalyWindowMs / 60_000,
+        observedOperations: count,
+        severity: 'WARNING',
+      },
     });
   }
 

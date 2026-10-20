@@ -25,6 +25,12 @@ model AuditLog {
   producer      String
   payload       Json
   severity      EventSeverity @default(INFO)
+  traceId       String?
+  spanId        String?
   occurredAt    DateTime
   consumedAt    DateTime      @default(now())
+
+  @@index([correlationId])
+  @@index([traceId])
+  @@index([producer, severity])
 }

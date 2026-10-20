@@ -21,6 +21,19 @@ model Account {
   updatedAt      DateTime      @updatedAt
 
   processedEvents ProcessedEvent[]
+  activities      AccountActivity[]
+}
+
+model AccountActivity {
+  id            String          @id @default(uuid())
+  accountId     String
+  operation     AccountOperation
+  amount        Decimal         @db.Decimal(15, 2)
+  correlationId String
+  occurredAt    DateTime        @default(now())
+  account       Account         @relation(fields: [accountId], references: [id])
+
+  @@index([accountId, occurredAt])
 }
 
 model ProcessedEvent {
@@ -60,4 +73,9 @@ enum AccountStatus {
   ACTIVE
   INACTIVE
   BLOCKED
+}
+
+enum AccountOperation {
+  DEBIT
+  CREDIT
 }

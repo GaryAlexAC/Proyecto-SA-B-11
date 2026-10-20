@@ -4,6 +4,7 @@ RUN apk add --no-cache openssl
 WORKDIR /workspace
 COPY . .
 RUN npm ci --workspace=apps/customer-service --include-workspace-root
+RUN npm run build --workspace=packages/observability
 RUN npx prisma generate --schema=apps/customer-service/prisma/schema.prisma
 RUN npm run build --workspace=apps/customer-service
 

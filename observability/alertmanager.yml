@@ -1,0 +1,15 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: bank-usac-visible-channel
+  group_by: [alertname, service]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+receivers:
+  - name: bank-usac-visible-channel
+    webhook_configs:
+      - url: http://api-gateway:3000/api/alerts/webhook
+        send_resolved: true

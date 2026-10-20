@@ -35,6 +35,97 @@ services:
     networks:
       - bank-network
 
+  rabbitmq-exporter:
+    image: kbudde/rabbitmq-exporter:1.0.0
+    environment:
+      RABBIT_URL: http://rabbitmq:15672
+      RABBIT_USER: guest
+      RABBIT_PASSWORD: guest
+    ports:
+      - "9419:9419"
+    depends_on:
+      - rabbitmq
+    networks:
+      - bank-network
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.119.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./observability/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8889:8889"
+    networks:
+      - bank-network
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=7d"]
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus-rules.yaml:/etc/prometheus/rules.yaml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - otel-collector
+      - alertmanager
+    networks:
+      - bank-network
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml"]
+    volumes:
+      - ./observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9093:9093"
+    networks:
+      - bank-network
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ./observability/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo_data:/var/tempo
+    ports:
+      - "3200:3200"
+    networks:
+      - bank-network
+
+  loki:
+    image: grafana/loki:3.2.1
+    command: ["-config.file=/etc/loki/loki.yaml"]
+    volumes:
+      - ./observability/loki.yaml:/etc/loki/loki.yaml:ro
+      - loki_data:/loki
+    ports:
+      - "3100:3100"
+    networks:
+      - bank-network
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3002:3000"
+    depends_on:
+      - prometheus
+      - tempo
+      - loki
+    networks:
+      - bank-network
+
   customer-service:
     build:
       context: .
@@ -45,6 +136,10 @@ services:
       PORT: 3001
       DATABASE_URL: postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-password123}@postgres:5432/db_customer?schema=public
       RABBITMQ_URL: amqp://rabbitmq:5672
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      ENVIRONMENT: dev
+      IMAGE_VERSION: local
+      METRICS_PORT: 9464
       JWT_SECRET: ${JWT_SECRET:-local-dev-jwt-secret-change-before-production}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
       ACTIVATION_URL_BASE: ${ACTIVATION_URL_BASE:-http://localhost:5173/}
@@ -75,6 +170,12 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-password123}@postgres:5432/db_account?schema=public
       RABBITMQ_URL: amqp://rabbitmq:5672
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      ENVIRONMENT: dev
+      IMAGE_VERSION: local
+      METRICS_PORT: 9464
+      ACCOUNT_ANOMALY_THRESHOLD: ${ACCOUNT_ANOMALY_THRESHOLD:-10}
+      ACCOUNT_ANOMALY_WINDOW_MINUTES: ${ACCOUNT_ANOMALY_WINDOW_MINUTES:-5}
       JWT_SECRET: ${JWT_SECRET:-local-dev-jwt-secret-change-before-production}
     depends_on:
       postgres:
@@ -93,6 +194,10 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-password123}@postgres:5432/db_transaction?schema=public
       RABBITMQ_URL: amqp://rabbitmq:5672
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      ENVIRONMENT: dev
+      IMAGE_VERSION: local
+      METRICS_PORT: 9464
       JWT_SECRET: ${JWT_SECRET:-local-dev-jwt-secret-change-before-production}
     depends_on:
       postgres:
@@ -113,6 +218,14 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-password123}@postgres:5432/db_payment?schema=public
       RABBITMQ_URL: amqp://rabbitmq:5672
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      ENVIRONMENT: dev
+      IMAGE_VERSION: local
+      METRICS_PORT: 9464
+      PAYMENT_FAILURE_RATE_PERCENT: ${PAYMENT_FAILURE_RATE_PERCENT:-20}
+      PAYMENT_TIMEOUT_RATE_PERCENT: ${PAYMENT_TIMEOUT_RATE_PERCENT:-10}
+      PAYMENT_LATENCY_MS: ${PAYMENT_LATENCY_MS:-0}
+      PAYMENT_TIMEOUT_MS: ${PAYMENT_TIMEOUT_MS:-3000}
       JWT_SECRET: ${JWT_SECRET:-local-dev-jwt-secret-change-before-production}
     depends_on:
       postgres:
@@ -131,6 +244,10 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-password123}@postgres:5432/db_notification?schema=public
       RABBITMQ_URL: amqp://rabbitmq:5672
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      ENVIRONMENT: dev
+      IMAGE_VERSION: local
+      METRICS_PORT: 9464
     depends_on:
       postgres:
         condition: service_healthy
@@ -148,6 +265,10 @@ services:
     environment:
       PORT: 3000
       RABBITMQ_URL: amqp://rabbitmq:5672
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      ENVIRONMENT: dev
+      IMAGE_VERSION: local
+      METRICS_PORT: 9464
       CUSTOMER_SERVICE_HTTP_URL: http://customer-service:3001
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
     ports:
@@ -188,6 +309,10 @@ services:
 
 volumes:
   postgres_data:
+  prometheus_data:
+  tempo_data:
+  loki_data:
+  grafana_data:
 
 networks:
   bank-network:
