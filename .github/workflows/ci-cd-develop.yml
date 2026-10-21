@@ -109,11 +109,23 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: ACR Login
-        uses: azure/docker-login@v1
-        with:
-          login-server: ${{ env.REGISTRY }}
-          username: ${{ secrets.REGISTRY_USERNAME }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}
+        env:
+          AZURE_RG: ${{ env.AZURE_RG }}
+        run: |
+          REGISTRY_SERVER="${REGISTRY#https://}"
+          REGISTRY_SERVER="${REGISTRY_SERVER%/}"
+          REGISTRY_NAME="${REGISTRY_SERVER%%.*}"
+          ACR_USERNAME=$(az acr credential show \
+            --name "$REGISTRY_NAME" \
+            --resource-group "$AZURE_RG" \
+            --query username -o tsv)
+          ACR_PASSWORD=$(az acr credential show \
+            --name "$REGISTRY_NAME" \
+            --resource-group "$AZURE_RG" \
+            --query 'passwords[0].value' -o tsv)
+          echo "$ACR_PASSWORD" | docker login "$REGISTRY_SERVER" \
+            --username "$ACR_USERNAME" --password-stdin
+          echo "REGISTRY=$REGISTRY_SERVER" >> "$GITHUB_ENV"
 
       - name: Build y Push — api-gateway
         if: needs.changes.outputs.api-gateway == 'true'
