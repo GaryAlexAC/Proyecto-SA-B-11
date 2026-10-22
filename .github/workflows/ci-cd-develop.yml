@@ -7,9 +7,11 @@ on:
       - develop
 
 env:
-  REGISTRY: ${{ secrets.REGISTRY_URL }}
-  AKS_CLUSTER: ${{ secrets.AKS_CLUSTER_NAME }}
-  AZURE_RG: ${{ secrets.AZURE_RG }}
+  REGISTRY: us-central1-docker.pkg.dev/project-de5dd415-1a0b-4df8-8a8/bank-usac
+  GKE_CLUSTER: bank-usac-cluster
+  GKE_ZONE: us-central1-a
+  WIF_PROVIDER: projects/287795054140/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+  WIF_SERVICE_ACCOUNT: sa-terraform@project-de5dd415-1a0b-4df8-8a8.iam.gserviceaccount.com
 
 jobs:
   changes:
@@ -100,32 +102,23 @@ jobs:
     name: Docker Build & Push (dev)
     runs-on: ubuntu-latest
     needs: [test, changes]
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Azure Login
-        uses: azure/login@v2
+      - name: Google Cloud Auth
+        uses: google-github-actions/auth@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.WIF_SERVICE_ACCOUNT }}
 
-      - name: ACR Login
-        env:
-          AZURE_RG: ${{ env.AZURE_RG }}
-        run: |
-          REGISTRY_SERVER="${REGISTRY#https://}"
-          REGISTRY_SERVER="${REGISTRY_SERVER%/}"
-          REGISTRY_NAME="${REGISTRY_SERVER%%.*}"
-          ACR_USERNAME=$(az acr credential show \
-            --name "$REGISTRY_NAME" \
-            --resource-group "$AZURE_RG" \
-            --query username -o tsv)
-          ACR_PASSWORD=$(az acr credential show \
-            --name "$REGISTRY_NAME" \
-            --resource-group "$AZURE_RG" \
-            --query 'passwords[0].value' -o tsv)
-          echo "$ACR_PASSWORD" | docker login "$REGISTRY_SERVER" \
-            --username "$ACR_USERNAME" --password-stdin
-          echo "REGISTRY=$REGISTRY_SERVER" >> "$GITHUB_ENV"
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for GCP Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
       - name: Build y Push — api-gateway
         if: needs.changes.outputs.api-gateway == 'true'
@@ -177,79 +170,52 @@ jobs:
           docker push $IMAGE
 
   deploy-dev:
-    name: Deploy to AKS (dev)
+    name: Deploy to GKE with Helm (dev)
     runs-on: ubuntu-latest
     needs: [docker-build-push, changes]
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Azure Login
-        uses: azure/login@v2
+      - name: Google Cloud Auth
+        uses: google-github-actions/auth@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.WIF_SERVICE_ACCOUNT }}
 
-      - name: AKS Set Context
-        uses: azure/aks-set-context@v3
+      - name: Set up GKE Credentials
+        uses: google-github-actions/get-gke-credentials@v2
         with:
-          resource-group: ${{ env.AZURE_RG }}
-          cluster-name: ${{ env.AKS_CLUSTER }}
+          cluster_name: ${{ env.GKE_CLUSTER }}
+          location: ${{ env.GKE_ZONE }}
 
-      - name: Crear namespace dev (si no existe)
-        run: kubectl create namespace dev --dry-run=client -o yaml | kubectl apply -f -
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
 
-      - name: Desplegar infraestructura base (RabbitMQ)
-        run: kubectl apply -f k8s/infra/rabbitmq-deployment.yaml -n dev
-
-      - name: Desplegar stack de observabilidad
+      - name: Desplegar stack de observabilidad con Helm
         run: |
-          kubectl apply -f k8s/observability/grafana.yaml -n dev
-          kubectl apply -f k8s/observability/stack.yaml -n dev
+          helm upgrade --install bank-observability ./charts/observability \
+            --namespace dev --create-namespace \
+            --set environment=dev \
+            --set imageVersion=dev-${{ github.sha }}
 
-      - name: Verificar rollout de observabilidad
+      - name: Desplegar microservicios de Bank USAC con Helm
         run: |
-          for service in otel-collector prometheus alertmanager rabbitmq-exporter tempo loki grafana; do
-            kubectl rollout status deployment/$service -n dev --timeout=180s
-          done
+          helm upgrade --install bank-usac ./charts/bank-usac \
+            --namespace dev --create-namespace \
+            --set environment=dev \
+            --set imageTag=dev-${{ github.sha }} \
+            --set imageRegistry=${{ env.REGISTRY }}
 
-
-      - name: Construir lista de servicios modificados
-        id: modified-services
-        env:
-          C_API: ${{ needs.changes.outputs.api-gateway }}
-          C_ACC: ${{ needs.changes.outputs.account-service }}
-          C_CUS: ${{ needs.changes.outputs.customer-service }}
-          C_TRA: ${{ needs.changes.outputs.transaction-service }}
-          C_PAY: ${{ needs.changes.outputs.payment-service }}
-          C_NOT: ${{ needs.changes.outputs.notification-service }}
-          C_FRO: ${{ needs.changes.outputs.frontend }}
+      - name: Verificar rollout de servicios
         run: |
-          SERVICES=""
-          [ "$C_API" == "true" ] && SERVICES="$SERVICES api-gateway"
-          [ "$C_ACC" == "true" ] && SERVICES="$SERVICES account-service"
-          [ "$C_CUS" == "true" ] && SERVICES="$SERVICES customer-service"
-          [ "$C_TRA" == "true" ] && SERVICES="$SERVICES transaction-service"
-          [ "$C_PAY" == "true" ] && SERVICES="$SERVICES payment-service"
-          [ "$C_NOT" == "true" ] && SERVICES="$SERVICES notification-service"
-          [ "$C_FRO" == "true" ] && SERVICES="$SERVICES frontend"
-          echo "SERVICES=$SERVICES" >> $GITHUB_ENV
-
-      - name: Deploy microservicios modificados en namespace dev
-        run: |
-          if [ -z "$SERVICES" ]; then
-            echo "No hay servicios modificados para desplegar."
-            exit 0
-          fi
-          for service in $SERVICES; do
-            echo "Desplegando $service..."
-            kubectl apply -f k8s/infra/${service}.yaml -n dev
-            kubectl set image deployment/$service \
-              $service=${{ env.REGISTRY }}/$service:dev-${{ github.sha }} \
-              -n dev
-          done
-
-      - name: Verificar rollout
-        run: |
-          if [ -z "$SERVICES" ]; then exit 0; fi
-          for service in $SERVICES; do
-            kubectl rollout status deployment/$service -n dev --timeout=300s
-          done
+          kubectl rollout status deployment/rabbitmq -n dev --timeout=180s
+          kubectl rollout status deployment/api-gateway -n dev --timeout=300s
+          kubectl rollout status deployment/account-service -n dev --timeout=300s
+          kubectl rollout status deployment/customer-service -n dev --timeout=300s
+          kubectl rollout status deployment/transaction-service -n dev --timeout=300s
+          kubectl rollout status deployment/payment-service -n dev --timeout=300s
+          kubectl rollout status deployment/notification-service -n dev --timeout=300s
+          kubectl rollout status deployment/frontend -n dev --timeout=300s

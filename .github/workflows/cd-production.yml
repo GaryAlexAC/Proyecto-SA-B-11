@@ -7,89 +7,67 @@ on:
       - main
 
 env:
-  REGISTRY: ${{ secrets.REGISTRY_URL }}
-  AKS_CLUSTER: ${{ secrets.AKS_CLUSTER_NAME }}
-  AZURE_RG: ${{ secrets.AZURE_RG }}
+  REGISTRY: us-central1-docker.pkg.dev/project-de5dd415-1a0b-4df8-8a8/bank-usac
+  GKE_CLUSTER: bank-usac-cluster
+  GKE_ZONE: us-central1-a
+  WIF_PROVIDER: projects/287795054140/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+  WIF_SERVICE_ACCOUNT: sa-terraform@project-de5dd415-1a0b-4df8-8a8.iam.gserviceaccount.com
 
 jobs:
   deploy-production:
     name: Rolling Update en Producción
     runs-on: ubuntu-latest
-    environment: production  # Requiere aprobación manual en GitHub (recomendado)
+    permissions:
+      contents: read
+      id-token: write
+    environment: production
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Azure Login
-        uses: azure/login@v2
+      - name: Google Cloud Auth
+        uses: google-github-actions/auth@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.WIF_SERVICE_ACCOUNT }}
 
-      - name: AKS Set Context
-        uses: azure/aks-set-context@v3
+      - name: Set up GKE Credentials
+        uses: google-github-actions/get-gke-credentials@v2
         with:
-          resource-group: ${{ env.AZURE_RG }}
-          cluster-name: ${{ env.AKS_CLUSTER }}
+          cluster_name: ${{ env.GKE_CLUSTER }}
+          location: ${{ env.GKE_ZONE }}
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
 
       - name: Obtener versión del último release
         id: get_version
         run: |
-          # Busca el tag más reciente en el repositorio
           VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "🏷️  Desplegando versión: $VERSION"
 
-      - name: Crear namespace prod (si no existe)
-        run: kubectl create namespace prod --dry-run=client -o yaml | kubectl apply -f -
-
-      - name: Desplegar infraestructura base (RabbitMQ)
-        run: kubectl apply -f k8s/infra/rabbitmq-deployment.yaml -n prod
-
-      - name: Desplegar stack de observabilidad
+      - name: Desplegar stack de observabilidad en producción con Helm
         run: |
-          kubectl apply -f k8s/observability/grafana.yaml -n prod
-          kubectl apply -f k8s/observability/stack.yaml -n prod
+          helm upgrade --install bank-observability ./charts/observability \
+            --namespace prod --create-namespace \
+            --set environment=prod \
+            --set imageVersion=${{ steps.get_version.outputs.version }}
 
-      - name: Verificar rollout de observabilidad
-        run: |
-          for service in otel-collector prometheus alertmanager rabbitmq-exporter tempo loki grafana; do
-            kubectl rollout status deployment/$service -n prod --timeout=180s
-          done
-
-
-      - name: Rolling Update en producción
+      - name: Desplegar microservicios en producción con Helm
         run: |
           VERSION=${{ steps.get_version.outputs.version }}
-          
-          # Crear copias temporales de los manifiestos para prod
-          mkdir -p k8s/prod-infra
-          cp k8s/infra/*.yaml k8s/prod-infra/
-          
-          # Separar la base de datos de 'dev' → esquema prod
-          sed -i 's/schema=public/schema=prod/g' k8s/prod-infra/*.yaml
-          
-          # Cambiar el nodePort del api-gateway-external para evitar colisión con dev (30000)
-          sed -i 's/nodePort: 30000/nodePort: 30001/g' k8s/prod-infra/api-gateway.yaml
-          
-          # Cambiar la URL de activación de correos de dev a prod
-          sed -i 's|http://9.169.131.155/|http://130.213.247.56/|g' k8s/prod-infra/customer-service.yaml
-          
-          # Pre-inyectar la imagen real del ACR en los YAMLs ANTES de aplicar
-          # Esto evita que los pods intenten jalar la imagen placeholder durante el rolling update
-          for service in api-gateway account-service customer-service transaction-service payment-service notification-service frontend; do
-            sed -i "s|image: bank-usac/${service}:.*|image: ${{ env.REGISTRY }}/${service}:${VERSION}|g" k8s/prod-infra/${service}.yaml
-          done
-          
-          for service in api-gateway account-service customer-service transaction-service payment-service notification-service frontend; do
-            echo "🚀 Actualizando $service a versión $VERSION..."
-            kubectl apply -f k8s/prod-infra/${service}.yaml -n prod
-          done
+          helm upgrade --install bank-usac ./charts/bank-usac \
+            -f ./charts/bank-usac/values-prod.yaml \
+            --namespace prod --create-namespace \
+            --set imageTag=$VERSION \
+            --set imageRegistry=${{ env.REGISTRY }}
 
       - name: Verificar rollout exitoso
         run: |
-          for service in api-gateway account-service customer-service transaction-service payment-service notification-service frontend; do
+          for service in rabbitmq api-gateway account-service customer-service transaction-service payment-service notification-service frontend; do
             echo "⏳ Verificando rollout de $service..."
             kubectl rollout status deployment/$service -n prod --timeout=300s
             echo "✅ $service desplegado correctamente"
