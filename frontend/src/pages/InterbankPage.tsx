@@ -164,8 +164,8 @@ export function InterbankPage() {
         </div>
       </header>
 
-      {error && <Alert variant="error" message={error} onClose={() => setError("")} />}
-      {message && <Alert variant="success" message={message} onClose={() => setMessage("")} />}
+      {error && <Alert>{error}</Alert>}
+      {message && <Alert tone="success">{message}</Alert>}
 
       <div className="operations-layout">
         {/* FORMULARIO DE ENVÍO */}

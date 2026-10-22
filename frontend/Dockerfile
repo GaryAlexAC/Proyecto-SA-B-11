@@ -2,7 +2,7 @@ FROM node:22-alpine AS build
 
 WORKDIR /workspace
 COPY . .
-RUN npm ci --workspace=frontend --include-workspace-root=false --ignore-scripts
+RUN npm ci --workspace=frontend --include-workspace-root
 RUN npm run build --workspace=frontend
 
 FROM nginx:1.27-alpine
