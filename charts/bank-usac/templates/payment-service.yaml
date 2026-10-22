@@ -31,7 +31,7 @@ spec:
           name: metrics
         env:
         - name: DATABASE_URL
-          value: "postgresql://{{ .Values.database.user }}:{{ .Values.database.password }}@{{ .Values.database.host }}:{{ .Values.database.port }}/db_payment?schema={{ .Values.database.schema }}"
+          value: "postgresql://{{ .Values.database.user }}:{{ .Values.database.password | urlquery }}@{{ .Values.database.host }}:{{ .Values.database.port }}/db_payment?schema={{ .Values.database.schema }}"
         - name: RABBITMQ_URL
           value: "amqp://{{ .Values.rabbitmq.user }}:{{ .Values.rabbitmq.password }}@{{ .Values.rabbitmq.host }}:{{ .Values.rabbitmq.port }}"
         - name: JWT_SECRET
