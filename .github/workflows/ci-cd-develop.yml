@@ -126,6 +126,13 @@ jobs:
             --set environment=dev \
             --set imageVersion=dev-${{ github.sha }}
 
+      - name: Resolver conflictos de Server-Side Apply (kubectl-set)
+        run: |
+          for dep in account-service customer-service notification-service payment-service transaction-service; do
+            echo "🧹 Limpiando deployment con conflicto SSA: $dep"
+            kubectl delete deployment $dep -n dev --ignore-not-found || true
+          done
+
       - name: Desplegar microservicios de Bank USAC con Helm
         run: |
           helm upgrade --install bank-usac ./charts/bank-usac \
