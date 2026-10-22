@@ -13,24 +13,24 @@ Este documento detalla la distribución de tareas para la **Fase 2 (Evolución a
 
 ---
 
-## 2. Gary (Frontend, KYC & Documentación C4) - ⏳ Pendiente
+## 2. Gary (Frontend, KYC & Documentación C4) - ✅ Completado
 **Responsabilidad:** Extensiones gráficas, servicio al cliente y documentación visual.
 
 **Tareas Técnicas:**
 1. **Frontend (React + TS):** 
    - Nueva interfaz de administración para ver y cambiar el estado KYC de los clientes.
    - Filtros de estado y fecha en el historial de transacciones.
-   - **Integración de despliegue:** El frontend se empaqueta con Nginx y se ejecuta como contenedor dentro de AKS. La operación del despliegue se centraliza con el responsable de infraestructura.
+   - **Integración de despliegue:** El frontend se empaqueta con Nginx y se ejecuta como contenedor dentro de Kubernetes (GKE / AKS).
 2. **Customer Service (NestJS):**
    - Nuevo modelo/campo `kycStatus` (`PENDING | VERIFIED | REJECTED`).
    - Emitir evento `KYCStatusUpdated` (gravedad INFO/WARNING dependiendo si fue exitoso o rechazado).
 3. **Documentación Técnica (Fase F):**
-   - Actualizar los **Diagramas C4** (Contexto y Contenedores) en Draw.io y `.md` para reflejar Azure, AKS, ACR y Terraform.
-   - Documentar la arquitectura de despliegue Azure en `deployment.md`.
+   - Diagramas C4 (Contexto, Contenedores, Componentes) y documentación de arquitectura.
+   - Documentar la arquitectura de despliegue cloud en `deployment.md`.
 
 ---
 
-## 3. Andrés (Núcleo Financiero Core) - ⏳ Pendiente
+## 3. Andrés (Núcleo Financiero Core) - ✅ Completado
 **Responsabilidad:** Implementación de nuevas reglas bancarias complejas, saldos mínimos y fallos de timeout en la Saga.
 
 **Tareas Técnicas:**
@@ -47,5 +47,7 @@ Este documento detalla la distribución de tareas para la **Fase 2 (Evolución a
      - Configurar probabilidades de éxito (70%), rechazo (20%), y **timeout** (10%).
      - Emitir evento de `PaymentTimeout` para probar la severidad ERROR en la notificación.
 
-> [!IMPORTANT]
-> **Para Andrés y Gary:** Trabajen siempre en sus ramas `feature/` y prueben todo primero. Ahora sus Pull Requests dispararán el Pipeline CI y si fallan las pruebas, no podrán hacer merge. ¡Mucho cuidado y a programar!
+---
+
+## 4. Estado de Cumplimiento Global
+Todas las responsabilidades asignadas a los tres integrantes han sido desarrolladas, integradas mediante Pull Requests, validadas con el Pipeline CI/CD y desplegadas exitosamente en el clúster de Kubernetes en Google Cloud Platform (GKE).

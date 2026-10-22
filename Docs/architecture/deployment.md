@@ -142,16 +142,33 @@ VM de PostgreSQL. El script `terraform/scripts/setup-postgres.sh` instala
 PostgreSQL y crea las cinco bases de datos.
 
 Al integrar cambios en `develop`, GitHub Actions compila y prueba el proyecto,
-construye las imágenes modificadas, las publica en ACR y actualiza los
+construye las imágenes modificadas, las publica en el registro de contenedores (Artifact Registry / ACR) y actualiza los
 Deployments del namespace `dev`. El flujo de producción utiliza el namespace
 `prod` y realiza rolling updates con imágenes versionadas.
 
+## Despliegue implementado en Google Cloud Platform (GCP)
+
+El sistema activo y validado opera en **Google Cloud Platform (GCP)** en la región `us-central1` (zona `us-central1-a`):
+
+| Componente | Servicio GCP | Configuración |
+| --- | --- | --- |
+| **Orquestador** | Google Kubernetes Engine (GKE) | Clúster `bank-usac-cluster` |
+| **Registro de Contenedores** | Artifact Registry | Repositorio Docker `us-central1-docker.pkg.dev/project-de5dd415-1a0b-4df8-8a8/bank-usac` |
+| **Base de Datos** | Compute Engine VM | Instancia `bank-usac-db` (`10.10.16.2`), Ubuntu 22.04 LTS, PostgreSQL |
+| **Red Privada** | Google Cloud VPC | Subredes dedicadas para GKE y para la VM de base de datos |
+| **Empaquetado** | Helm 3 | Chart `charts/bank-usac` con plantillas parametrizadas por entorno (`dev` y `prod`) |
+| **Observabilidad** | Stack de Observabilidad | Grafana (`136.64.164.78:3000`), Prometheus, Loki, Tempo y OpenTelemetry Collector |
+| **Ingress / Acceso Web** | Google Cloud Load Balancer | Frontend expuesto en IP pública `34.29.251.106:80` |
+
 ## Evidencia de implementación
 
-- Infraestructura como código: `terraform/`.
-- Manifiestos de ejecución: `k8s/infra/`.
-- Namespaces: `k8s/namespaces.yaml`.
-- Autoescalado: `k8s/infra/hpa/hpa-all-services.yaml`.
-- Pipeline de desarrollo: `.github/workflows/ci-cd-develop.yml`.
-- Pipeline de producción: `.github/workflows/cd-production.yml`.
-- Configuración del proxy web: `frontend/nginx.conf`.
+- Infraestructura como código GCP: `terraform-gcp/`.
+- Infraestructura como código Azure: `terraform/`.
+- Helm Charts: `charts/bank-usac/` y `charts/observability/`.
+- Manifiestos de Kubernetes: `k8s/infra/` y `k8s/observability/`.
+- Autoescalado HPA: `charts/bank-usac/templates/hpa.yaml` y `k8s/infra/hpa/`.
+- Pipeline CI Feature: `.github/workflows/ci-feature.yml`.
+- Pipeline CI/CD Develop: `.github/workflows/ci-cd-develop.yml`.
+- Pipeline Release: `.github/workflows/release.yml`.
+- Pipeline CD Producción: `.github/workflows/cd-production.yml`.
+- Configuración del proxy web frontend: `frontend/nginx.conf`.
