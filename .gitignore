@@ -37,3 +37,11 @@ terraform/.terraform.lock.hcl
 terraform/terraform.tfstate
 terraform/terraform.tfstate.backup
 terraform/terraform.tfvars
+terraform-gcp/.terraform/
+terraform-gcp/.terraform.lock.hcl
+terraform-gcp/terraform.tfstate
+terraform-gcp/terraform.tfstate.backup
+terraform-gcp/terraform.tfvars
+*credentials*.json
+*.key.json
+gcp-credentials.json

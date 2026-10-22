@@ -1,0 +1,6 @@
+project_id       = "project-de5dd415-1a0b-4df8-8a8"
+region           = "us-central1"
+zone             = "us-central1-a"
+credentials_file = "../gcp-credentials.json"
+db_password      = "BankAdminSecure2026!"
+db_admin_user    = "bankadmin"
