@@ -1,0 +1,6 @@
+apiVersion: v2
+name: bank-usac
+description: Helm chart para los Microservicios de Bank USAC (Customer, Account, Transaction, Payment, Notification, API Gateway, Frontend, RabbitMQ)
+type: application
+version: 1.0.0
+appVersion: "1.0.0"

@@ -1,0 +1,48 @@
+environment: dev
+imageTag: latest
+imageRegistry: us-central1-docker.pkg.dev/project-de5dd415-1a0b-4df8-8a8/bank-usac
+imagePullPolicy: IfNotPresent
+
+database:
+  host: "10.10.16.2"
+  port: 5432
+  user: "bankadmin"
+  password: "BankAdminGCP2026!#"
+  schema: "public"
+
+rabbitmq:
+  host: "rabbitmq"
+  port: 5672
+  user: "guest"
+  password: "guest"
+
+jwt:
+  secret: "local-dev-jwt-secret-change-before-production-local-12345"
+  expiresIn: "1h"
+
+services:
+  apiGateway:
+    replicaCount: 1
+    type: LoadBalancer
+    port: 3000
+    metricsPort: 9464
+  customerService:
+    replicaCount: 1
+    port: 3001
+    metricsPort: 9464
+  accountService:
+    replicaCount: 1
+    metricsPort: 9464
+  transactionService:
+    replicaCount: 1
+    metricsPort: 9464
+  paymentService:
+    replicaCount: 1
+    metricsPort: 9464
+  notificationService:
+    replicaCount: 1
+    metricsPort: 9464
+  frontend:
+    replicaCount: 1
+    type: LoadBalancer
+    port: 80

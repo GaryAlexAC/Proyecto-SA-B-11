@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  labels:
+    app: api-gateway
+spec:
+  replicas: {{ .Values.services.apiGateway.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: {{ .Values.services.apiGateway.metricsPort | default 9464 | quote }}
+    spec:
+      containers:
+      - name: api-gateway
+        image: "{{ .Values.imageRegistry }}/api-gateway:{{ .Values.imageTag }}"
+        imagePullPolicy: {{ .Values.imagePullPolicy | default "Always" }}
+        ports:
+        - containerPort: {{ .Values.services.apiGateway.port | default 3000 }}
+        - containerPort: {{ .Values.services.apiGateway.metricsPort | default 9464 }}
+          name: metrics
+        envFrom:
+        - configMapRef:
+            name: observability-env
+        env:
+        - name: PORT
+          value: {{ .Values.services.apiGateway.port | default 3000 | quote }}
+        - name: RABBITMQ_URL
+          value: "amqp://{{ .Values.rabbitmq.user }}:{{ .Values.rabbitmq.password }}@{{ .Values.rabbitmq.host }}:{{ .Values.rabbitmq.port }}"
+        - name: FRONTEND_URL
+          value: "*"
+        - name: CUSTOMER_SERVICE_HTTP_URL
+          value: "http://customer-service:3001"
+        - name: JWT_SECRET
+          value: {{ .Values.jwt.secret | quote }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.services.apiGateway.port | default 3000 }}
+          initialDelaySeconds: 15
+          periodSeconds: 30
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.services.apiGateway.port | default 3000 }}
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "250m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+spec:
+  type: ClusterIP
+  ports:
+  - port: {{ .Values.services.apiGateway.port | default 3000 }}
+    targetPort: {{ .Values.services.apiGateway.port | default 3000 }}
+  - name: metrics
+    port: {{ .Values.services.apiGateway.metricsPort | default 9464 }}
+    targetPort: {{ .Values.services.apiGateway.metricsPort | default 9464 }}
+  selector:
+    app: api-gateway
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway-external
+spec:
+  type: {{ .Values.services.apiGateway.type | default "LoadBalancer" }}
+  ports:
+  - port: {{ .Values.services.apiGateway.port | default 3000 }}
+    targetPort: {{ .Values.services.apiGateway.port | default 3000 }}
+  - name: metrics
+    port: {{ .Values.services.apiGateway.metricsPort | default 9464 }}
+    targetPort: {{ .Values.services.apiGateway.metricsPort | default 9464 }}
+  selector:
+    app: api-gateway

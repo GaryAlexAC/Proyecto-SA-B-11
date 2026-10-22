@@ -1,0 +1,15 @@
+environment: dev
+imageVersion: v1.0.0
+
+service:
+  grafana:
+    type: LoadBalancer # En GKE genera una IP pública directa para entrar a Grafana
+    port: 3000
+
+observabilityEnv:
+  accountAnomalyThreshold: "10"
+  accountAnomalyWindowMinutes: "5"
+  paymentFailureRatePercent: "20"
+  paymentTimeoutRatePercent: "10"
+  paymentLatencyMs: "0"
+  paymentTimeoutMs: "3000"
