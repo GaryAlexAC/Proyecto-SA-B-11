@@ -1,10 +1,12 @@
 name: CI+CD — Develop Branch
 
-# Se dispara en push/merge a develop
+# Se dispara en push/merge a develop o feature/201700936_fase3, o manualmente
 on:
   push:
     branches:
       - develop
+      - feature/201700936_fase3
+  workflow_dispatch:
 
 env:
   REGISTRY: us-central1-docker.pkg.dev/project-de5dd415-1a0b-4df8-8a8/bank-usac
@@ -81,6 +83,8 @@ jobs:
           node-version: "22"
           cache: "npm"
       - run: npm ci
+      - run: npm run build --workspace=packages/observability
+      - run: npm run prebuild --workspaces --if-present
       - run: npm run build
 
   test:
