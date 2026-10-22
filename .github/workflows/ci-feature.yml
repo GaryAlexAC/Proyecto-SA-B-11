@@ -26,8 +26,13 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
+      - name: Compilar observabilidad y clientes de base de datos
+        run: |
+          npm run build --workspace=packages/observability
+          npm run prebuild --workspaces --if-present
+
       - name: Compilar todos los microservicios
-        run: npm run build --workspaces --if-present
+        run: npm run build
 
   # ──────────────────────────────────────
   # JOB 2: Test — Ejecutar pruebas
@@ -48,6 +53,11 @@ jobs:
 
       - name: Instalar dependencias
         run: npm ci
+
+      - name: Compilar observabilidad y clientes de base de datos
+        run: |
+          npm run build --workspace=packages/observability
+          npm run prebuild --workspaces --if-present
 
       - name: Ejecutar pruebas unitarias
         run: npm run test --workspaces --if-present
