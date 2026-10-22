@@ -51,10 +51,10 @@ data:
       "editable": false,
       "graphTooltip": 1,
       "panels": [
-        {"type": "stat", "title": "Errores por minuto", "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0}, "targets": [{"expr": "sum(rate(bank_errors_total[5m]))", "refId": "A"}]},
-        {"type": "stat", "title": "Throughput", "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0}, "targets": [{"expr": "sum(rate(bank_requests_total[5m]))", "refId": "A"}]},
-        {"type": "timeseries", "title": "Latencia p95", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}, "targets": [{"expr": "histogram_quantile(0.95, sum by (le, service_name) (rate(transaction_duration_ms_bucket[5m])))", "refId": "A"}]},
-        {"type": "timeseries", "title": "Anomalías de cuentas", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4}, "targets": [{"expr": "sum by (operation) (increase(account_anomalies_detected_total[1h]))", "refId": "A"}]}
+        {"type": "stat", "title": "Errores por minuto", "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0}, "targets": [{"expr": "sum(rate(bank_errors_total[5m])) or vector(0)", "refId": "A"}]},
+        {"type": "stat", "title": "Throughput", "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0}, "targets": [{"expr": "sum(rate(bank_requests_total[5m])) or vector(0)", "refId": "A"}]},
+        {"type": "timeseries", "title": "Latencia p95", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}, "targets": [{"expr": "histogram_quantile(0.95, sum by (le, service_name) (rate(transaction_duration_ms_bucket[5m]))) or vector(0)", "refId": "A"}]},
+        {"type": "timeseries", "title": "Anomalías de cuentas", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4}, "targets": [{"expr": "sum by (operation) (increase(account_anomalies_detected_total[1h])) or vector(0)", "refId": "A"}]}
       ],
       "schemaVersion": 39,
       "title": "Bank USAC - Estado y SLI",
