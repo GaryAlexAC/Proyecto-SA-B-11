@@ -70,3 +70,56 @@ enum PaymentType {
   INTERNAL
   EXTERNAL
 }
+
+enum InterbankDirection {
+  INCOMING
+  OUTGOING
+}
+
+enum InterbankStatus {
+  PENDING
+  SENT
+  PROCESSING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+  TIMEOUT
+  REVERSED
+}
+
+model InterbankTransfer {
+  id                  String             @id @default(uuid())
+  interbankTransferId String             @unique
+  direction           InterbankDirection
+  originBankCode      String
+  destinationBankCode String
+  originAccount       String
+  destinationAccount  String
+  amount              Decimal            @db.Decimal(15, 2)
+  currency            String             @default("GTQ")
+  description         String?
+  status              InterbankStatus    @default(PROCESSING)
+  reasonCode          String?
+  reasonMessage       String?
+  requestHash         String             @default("")
+  idempotencyKey      String             @unique
+  traceparent         String?
+  correlationId       String?
+  createdAt           DateTime           @default(now())
+  expiresAt           DateTime
+  updatedAt           DateTime           @updatedAt
+  processedAt         DateTime?
+  callbackUrl         String?
+  callbackAttempts    Int                @default(0)
+  callbackDeliveredAt DateTime?
+}
+
+model InterbankReversal {
+  id                 String   @id @default(uuid())
+  reversalId         String   @unique
+  originalTransferId String
+  reason             String
+  status             String   @default("PROCESSING")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}

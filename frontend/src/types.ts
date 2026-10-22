@@ -136,3 +136,47 @@ export interface Service {
     name: string;
   };
 }
+
+export interface InterbankTransfer {
+  id: string;
+  interbankTransferId: string;
+  direction: 'INCOMING' | 'OUTGOING';
+  originBankCode: string;
+  destinationBankCode: string;
+  originAccount: string;
+  destinationAccount: string;
+  amount: Money;
+  currency: string;
+  description: string | null;
+  status:
+    | 'PENDING'
+    | 'SENT'
+    | 'PROCESSING'
+    | 'ACCEPTED'
+    | 'REJECTED'
+    | 'CANCELLED'
+    | 'TIMEOUT'
+    | 'REVERSED';
+  reasonCode: string | null;
+  reasonMessage: string | null;
+  correlationId: string | null;
+  traceparent: string | null;
+  createdAt: string;
+  expiresAt: string;
+  updatedAt: string;
+}
+
+export interface InterbankTransferInput {
+  sourceAccountId: string;
+  destinationBankCode: string;
+  destinationAccount: string;
+  amount: number;
+  description?: string;
+}
+
+export interface InterbankMockConfig {
+  enabled: boolean;
+  behavior: 'SUCCESS' | 'REJECT' | 'TIMEOUT' | 'SLOW';
+  rejectReason: string;
+  latencyMs: number;
+}

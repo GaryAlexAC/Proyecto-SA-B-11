@@ -81,6 +81,12 @@ export class AccountsService {
     });
   }
 
+  async getAccount(id: string) {
+    return this.prisma.account.findUnique({
+      where: { id },
+    });
+  }
+
   // Paso 1: Reserva de fondos (Débito)
   async reserveFunds(
     sourceAccountId: string,

@@ -40,6 +40,10 @@ spec:
           value: "http://customer-service:3001"
         - name: JWT_SECRET
           value: {{ .Values.jwt.secret | quote }}
+        - name: BANK_CODE
+          value: "BANK11"
+        - name: INTERBANK_API_KEY
+          value: "bank11-partner-key-2026"
         livenessProbe:
           httpGet:
             path: /health

@@ -9,6 +9,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { PaymentsPage } from "./pages/PaymentsPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { TransactionsPage } from "./pages/TransactionsPage";
+import { InterbankPage } from "./pages/InterbankPage";
 import { Brand, Icon, initials, roleLabel } from "./ui";
 import type { UserRole } from "./types";
 
@@ -18,6 +19,7 @@ export type PageName =
   | "accounts"
   | "transactions"
    | "payments"
+   | "interbank"
    | "profile"
    | "audit";
 
@@ -58,6 +60,12 @@ const navigation: NavigationItem[] = [
     label: "Pagos",
     icon: "payment",
     roles: ["CASHIER", "CLIENT"],
+  },
+  {
+    id: "interbank",
+    label: "Interbancario",
+    icon: "transfer",
+    roles: ["ADMIN", "CASHIER", "CLIENT"],
   },
   {
     id: "audit",
@@ -105,6 +113,8 @@ export function App() {
         return <TransactionsPage />;
       case "payments":
         return <PaymentsPage />;
+      case "interbank":
+        return <InterbankPage />;
       case "audit":
         return <AuditPage />;
       case "profile":

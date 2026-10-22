@@ -46,4 +46,70 @@ export class AccountsController {
     this.jwtAuth.assertCustomerAccess(actor, data.customerId);
     return this.accountsService.getAccountsByCustomer(data.customerId);
   }
+
+  @MessagePattern('get_account')
+  async getAccount(@Payload() data: { id: string }) {
+    return this.accountsService.getAccount(data.id);
+  }
+
+  @MessagePattern('interbank_credit')
+  async interbankCredit(
+    @Payload()
+    data: {
+      targetAccountId: string;
+      amount: number;
+      correlationId: string;
+      eventId: string;
+    },
+  ) {
+    return this.accountsService.applyCredit(
+      'INTERBANK',
+      data.targetAccountId,
+      data.amount,
+      data.correlationId,
+      data.eventId,
+    );
+  }
+
+  @MessagePattern('interbank_reserve')
+  async interbankReserve(
+    @Payload()
+    data: {
+      sourceAccountId: string;
+      amount: number;
+      correlationId: string;
+      eventId: string;
+      customerId: string;
+    },
+  ) {
+    return this.accountsService.reserveFunds(
+      data.sourceAccountId,
+      null,
+      data.amount,
+      data.correlationId,
+      data.eventId,
+      data.customerId,
+    );
+  }
+
+  @MessagePattern('interbank_refund')
+  async interbankRefund(
+    @Payload()
+    data: {
+      sourceAccountId: string;
+      amount: number;
+      correlationId: string;
+      eventId: string;
+      reason?: string;
+    },
+  ) {
+    return this.accountsService.refundFunds(
+      data.sourceAccountId,
+      null,
+      data.amount,
+      data.correlationId,
+      data.eventId,
+      data.reason,
+    );
+  }
 }

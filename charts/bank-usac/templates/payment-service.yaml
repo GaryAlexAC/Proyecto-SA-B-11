@@ -36,6 +36,12 @@ spec:
           value: "amqp://{{ .Values.rabbitmq.user }}:{{ .Values.rabbitmq.password }}@{{ .Values.rabbitmq.host }}:{{ .Values.rabbitmq.port }}"
         - name: JWT_SECRET
           value: {{ .Values.jwt.secret | quote }}
+        - name: BANK_CODE
+          value: "BANK11"
+        - name: PARTNER_BANK_CODE
+          value: "BANK06"
+        - name: INTERBANK_MOCK_ENABLED
+          value: "true"
         livenessProbe:
           exec:
             command: ["node", "-e", "process.exit(0)"]

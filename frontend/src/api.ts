@@ -10,6 +10,9 @@ import type {
   Payment,
   Service,
   Transaction,
+  InterbankTransfer,
+  InterbankTransferInput,
+  InterbankMockConfig,
 } from "./types";
 
 const configuredUrl = import.meta.env.VITE_API_GATEWAY_URL?.trim();
@@ -328,6 +331,35 @@ export const api = {
       if (value) query.set(key, value);
     });
     return request<AuditRecord[]>(`/api/audit?${query.toString()}`);
+  },
+
+  createInterbankTransfer(input: InterbankTransferInput) {
+    return request<InterbankTransfer>(
+      "/api/interbank/transfers",
+      {
+        method: "POST",
+        body: jsonBody({
+          ...input,
+          sourceAccountId: accountId(input.sourceAccountId),
+        }),
+      },
+      { idempotent: true },
+    );
+  },
+
+  getInterbankTransfers() {
+    return request<InterbankTransfer[]>("/api/interbank/transfers");
+  },
+
+  getInterbankMockConfig() {
+    return request<InterbankMockConfig>("/api/interbank/mock/config");
+  },
+
+  updateInterbankMockConfig(config: Partial<InterbankMockConfig>) {
+    return request<InterbankMockConfig>("/api/interbank/mock/config", {
+      method: "POST",
+      body: jsonBody(config),
+    });
   },
 };
 

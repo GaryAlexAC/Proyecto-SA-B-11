@@ -35,3 +35,14 @@ La documentación se divide por tema. Los documentos de eventos, Saga, SRE, deci
 ## Decisiones
 
 - [Decisiones de arquitectura](decisions/architecture-decisions.md)
+
+## Integración Interbancaria (Proyecto 3)
+
+- [Acuerdo de integración con Grupo 6](interbank/acuerdo-integracion.md)
+- [Contrato OpenAPI de depósitos entre bancos](../openapi.yaml)
+
+## Análisis de Fallos (Postmortems)
+
+- [Postmortem 1: Timeout de banco pareja y compensación Saga](postmortems/postmortem-01-banco-pareja-timeout.md)
+- [Postmortem 2: Eliminación inesperada de Pod durante carga](postmortems/postmortem-02-pod-deletion.md)
+- [Postmortem 3: Inyección de errores intermitentes en pagos](postmortems/postmortem-03-payment-failure-rate.md)
