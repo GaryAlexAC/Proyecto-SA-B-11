@@ -69,7 +69,8 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-  - port: {{ .Values.services.apiGateway.port | default 3000 }}
+  - name: http
+    port: {{ .Values.services.apiGateway.port | default 3000 }}
     targetPort: {{ .Values.services.apiGateway.port | default 3000 }}
   - name: metrics
     port: {{ .Values.services.apiGateway.metricsPort | default 9464 }}
@@ -84,7 +85,8 @@ metadata:
 spec:
   type: {{ .Values.services.apiGateway.type | default "LoadBalancer" }}
   ports:
-  - port: {{ .Values.services.apiGateway.port | default 3000 }}
+  - name: http
+    port: {{ .Values.services.apiGateway.port | default 3000 }}
     targetPort: {{ .Values.services.apiGateway.port | default 3000 }}
   - name: metrics
     port: {{ .Values.services.apiGateway.metricsPort | default 9464 }}

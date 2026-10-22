@@ -81,7 +81,8 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-  - port: 3001
+  - name: http
+    port: 3001
     targetPort: 3001
   - name: metrics
     port: {{ .Values.services.customerService.metricsPort | default 9464 }}
