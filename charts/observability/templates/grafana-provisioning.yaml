@@ -54,7 +54,15 @@ data:
         {"type": "stat", "title": "Errores por minuto", "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0}, "targets": [{"expr": "sum(rate(bank_errors_total[5m])) or vector(0)", "refId": "A"}]},
         {"type": "stat", "title": "Throughput", "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0}, "targets": [{"expr": "sum(rate(bank_requests_total[5m])) or vector(0)", "refId": "A"}]},
         {"type": "timeseries", "title": "Latencia p95", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}, "targets": [{"expr": "histogram_quantile(0.95, sum by (le, service_name) (rate(transaction_duration_ms_bucket[5m]))) or vector(0)", "refId": "A"}]},
-        {"type": "timeseries", "title": "Anomalías de cuentas", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4}, "targets": [{"expr": "sum by (operation) (increase(account_anomalies_detected_total[1h])) or vector(0)", "refId": "A"}]}
+        {"type": "timeseries", "title": "Anomalías de cuentas", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4}, "targets": [{"expr": "sum by (operation) (increase(account_anomalies_detected_total[1h])) or vector(0)", "refId": "A"}]},
+        {"type": "timeseries", "title": "Duración general p95", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12}, "targets": [{"expr": "histogram_quantile(0.95, sum by (le) (rate(bank_operation_duration_ms_bucket[5m]))) or vector(0)", "refId": "A"}]},
+        {"type": "timeseries", "title": "Transacciones exitosas y fallidas", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12}, "targets": [{"expr": "sum(rate(transaction_success_total[5m])) or vector(0)", "legendFormat": "Éxitos", "refId": "A"}, {"expr": "sum(rate(transaction_failures_total[5m])) or vector(0)", "legendFormat": "Fallos", "refId": "B"}]},
+        {"type": "timeseries", "title": "Débitos y créditos", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20}, "targets": [{"expr": "sum by (operation) (rate(account_transactions_total[5m])) or vector(0)", "refId": "A"}]},
+        {"type": "timeseries", "title": "KYC aprobados y rechazados", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20}, "targets": [{"expr": "sum(rate(customer_kyc_verified_total[5m])) or vector(0)", "legendFormat": "Aprobados", "refId": "A"}, {"expr": "sum(rate(customer_kyc_rejected_total[5m])) or vector(0)", "legendFormat": "Rechazados", "refId": "B"}]},
+        {"type": "timeseries", "title": "Duración KYC p95", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 28}, "targets": [{"expr": "histogram_quantile(0.95, sum by (le) (rate(customer_kyc_duration_ms_bucket[5m]))) or vector(0)", "refId": "A"}]},
+        {"type": "timeseries", "title": "Fallos externos de Payment", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 28}, "targets": [{"expr": "sum by (failure_type) (rate(payment_external_failures_total[5m])) or vector(0)", "refId": "A"}]},
+        {"type": "timeseries", "title": "Latencia externa Payment p95", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 36}, "targets": [{"expr": "histogram_quantile(0.95, sum by (le) (rate(payment_external_latency_ms_bucket[5m]))) or vector(0)", "refId": "A"}]},
+        {"type": "timeseries", "title": "Mensajes pendientes RabbitMQ", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 36}, "targets": [{"expr": "sum(rabbitmq_queue_messages_ready) or vector(0)", "refId": "A"}]}
       ],
       "schemaVersion": 39,
       "title": "Bank USAC - Estado y SLI",
