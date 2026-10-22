@@ -24,6 +24,7 @@ async function bootstrap() {
     exposedHeaders: 'X-Correlation-Id,X-Trace-Id',
   });
 
-  await app.listen(process.env.PORT ?? 3000);
+  app.enableShutdownHooks();
+  await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
 }
 await bootstrap();

@@ -24,6 +24,7 @@ async function bootstrap() {
   );
   app.useLogger(new StructuredLogger('payment-service'));
   app.useGlobalInterceptors(new BrokerTraceInterceptor('payment-service'));
+  app.enableShutdownHooks();
   await app.listen();
 }
 bootstrap();

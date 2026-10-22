@@ -25,6 +25,7 @@ async function bootstrap() {
   );
   app.useLogger(new StructuredLogger('notification-service'));
   app.useGlobalInterceptors(new BrokerTraceInterceptor('notification-service'));
+  app.enableShutdownHooks();
   await app.listen();
 }
 bootstrap();

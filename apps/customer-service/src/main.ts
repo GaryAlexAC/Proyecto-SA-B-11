@@ -33,8 +33,9 @@ async function bootstrap() {
     { inheritAppConfig: true },
   );
 
+  app.enableShutdownHooks();
   await app.startAllMicroservices();
-  await app.listen(Number(process.env.PORT ?? 3001));
+  await app.listen(Number(process.env.PORT ?? 3001), '0.0.0.0');
 }
 
 void bootstrap();

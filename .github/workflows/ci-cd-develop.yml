@@ -134,6 +134,15 @@ jobs:
             --set imageTag=dev-${{ github.sha }} \
             --set imageRegistry=${{ env.REGISTRY }}
 
+      - name: Limpiar pods en estado Terminating colgados
+        run: |
+          kubectl get pods -n dev --no-headers 2>/dev/null | awk '$3 ~ /Terminating/ {print $1}' | while read -r pod; do
+            if [ -n "$pod" ]; then
+              echo "🧹 Forzando eliminación de pod colgado en Terminating: $pod"
+              kubectl delete pod "$pod" -n dev --grace-period=0 --force || true
+            fi
+          done
+
       - name: Verificar rollout de servicios
         run: |
           for service in rabbitmq api-gateway account-service customer-service transaction-service payment-service notification-service frontend; do
@@ -154,6 +163,16 @@ jobs:
         if: failure()
         run: |
           echo "=== ESTADO DE PODS ==="
-          kubectl get pods -n dev
+          kubectl get pods -n dev -o wide
+          echo ""
+          echo "=== DESCRIBIR DEPLOYMENT Y PODS DE API-GATEWAY ==="
+          kubectl describe deployment/api-gateway -n dev || true
+          kubectl get pods -n dev -l app=api-gateway -o name 2>/dev/null | while read -r pod; do
+            echo "--- DESCRIBE $pod ---"
+            kubectl describe "$pod" -n dev | tail -n 35
+            echo "--- LOGS $pod ---"
+            kubectl logs "$pod" -n dev --tail=40 || true
+          done
+          echo ""
           echo "=== EVENTOS RECIENTES ==="
           kubectl get events -n dev --sort-by='.lastTimestamp' | tail -n 30

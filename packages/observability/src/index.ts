@@ -122,10 +122,10 @@ function extractTraceContext(payload: unknown): Context {
   if (!traceparent) return context.active();
   const carrier: Record<string, string> = { traceparent };
   return propagation.extract(context.active(), carrier, {
-    get(carrier, key) {
+    get(carrier: Record<string, string>, key: string) {
       return carrier[key];
     },
-    keys(carrier) {
+    keys(carrier: Record<string, string>) {
       return Object.keys(carrier);
     },
   });
