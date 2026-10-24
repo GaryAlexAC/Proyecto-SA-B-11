@@ -47,6 +47,10 @@ services:
     type: LoadBalancer
     port: 80
 
+testFaultInjection:
+  forceOutboxFailure: "false"
+  forceOutboxFailureEvent: ""
+
 interbank:
   bankCode: "BANK11"
   partnerBankCode: "BANK06"

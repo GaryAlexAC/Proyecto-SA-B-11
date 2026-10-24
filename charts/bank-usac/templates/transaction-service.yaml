@@ -36,6 +36,10 @@ spec:
           value: "amqp://{{ .Values.rabbitmq.user }}:{{ .Values.rabbitmq.password }}@{{ .Values.rabbitmq.host }}:{{ .Values.rabbitmq.port }}"
         - name: JWT_SECRET
           value: {{ .Values.jwt.secret | quote }}
+        - name: FORCE_OUTBOX_FAILURE
+          value: {{ .Values.testFaultInjection.forceOutboxFailure | default "false" | quote }}
+        - name: FORCE_OUTBOX_FAILURE_EVENT
+          value: {{ .Values.testFaultInjection.forceOutboxFailureEvent | default "" | quote }}
         livenessProbe:
           exec:
             command: ["node", "-e", "process.exit(0)"]

@@ -7,6 +7,17 @@ on:
       - develop
       - feature/201700936_fase3
   workflow_dispatch:
+    inputs:
+      force_outbox_failure:
+        description: "Activar falla controlada del outbox en dev"
+        required: false
+        type: boolean
+        default: false
+      force_outbox_failure_event:
+        description: "Evento del outbox que debe fallar"
+        required: false
+        type: string
+        default: KycValidationRequested
 
 env:
   REGISTRY: us-central1-docker.pkg.dev/project-de5dd415-1a0b-4df8-8a8/bank-usac
@@ -139,7 +150,9 @@ jobs:
             --namespace dev --create-namespace \
             --set environment=dev \
             --set imageTag=dev-${{ github.sha }} \
-            --set imageRegistry=${{ env.REGISTRY }}
+            --set imageRegistry=${{ env.REGISTRY }} \
+            --set testFaultInjection.forceOutboxFailure="${{ github.event.inputs.force_outbox_failure || 'false' }}" \
+            --set testFaultInjection.forceOutboxFailureEvent="${{ github.event.inputs.force_outbox_failure_event || '' }}"
 
       - name: Limpiar pods en estado Terminating colgados
         run: |

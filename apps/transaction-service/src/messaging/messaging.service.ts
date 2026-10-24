@@ -47,6 +47,10 @@ export class MessagingService implements OnApplicationBootstrap, OnModuleDestroy
   private readonly logger = new Logger(MessagingService.name);
   private readonly retryDelays = [5_000, 15_000, 30_000];
   private readonly eventMetrics = createEventDeliveryMetrics('transaction-service');
+  private readonly forcedFailureEvent =
+    process.env.ENVIRONMENT === 'dev' && process.env.FORCE_OUTBOX_FAILURE === 'true'
+      ? process.env.FORCE_OUTBOX_FAILURE_EVENT?.trim()
+      : undefined;
   private timer?: NodeJS.Timeout;
   private flushing = false;
 
@@ -107,6 +111,9 @@ export class MessagingService implements OnApplicationBootstrap, OnModuleDestroy
       for (const event of events) {
         try {
           const client = this.clientFor(event.eventType);
+          if (this.forcedFailureEvent === event.eventType) {
+            throw new Error(`Falla controlada para ${event.eventType}`);
+          }
           await firstValueFrom(
             client.emit(event.eventType, injectTraceContext({
               eventId: event.id,
