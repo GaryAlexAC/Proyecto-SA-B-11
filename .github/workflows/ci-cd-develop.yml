@@ -151,8 +151,8 @@ jobs:
             --set environment=dev \
             --set imageTag=dev-${{ github.sha }} \
             --set imageRegistry=${{ env.REGISTRY }} \
-            --set testFaultInjection.forceOutboxFailure="${{ github.event.inputs.force_outbox_failure || 'false' }}" \
-            --set testFaultInjection.forceOutboxFailureEvent="${{ github.event.inputs.force_outbox_failure_event || '' }}"
+            --set testFaultInjection.forceOutboxFailure="${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.force_outbox_failure == 'true') || contains(github.event.head_commit.message, '[dlq-test]') }}" \
+            --set testFaultInjection.forceOutboxFailureEvent="${{ github.event.inputs.force_outbox_failure_event || 'KycValidationRequested' }}"
 
       - name: Limpiar pods en estado Terminating colgados
         run: |
