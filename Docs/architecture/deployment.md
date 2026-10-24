@@ -93,7 +93,7 @@ flowchart TB
                     transaction[Transaction Service]
                     payment[Payment Service]
                     notification[Notification Service]
-                    observability[Observabilidad\nGrafana, Loki, Prometheus, OTel]
+                    observability[Observabilidad\nGrafana, Prometheus, Loki, Tempo, Alertmanager, OTel]
                 end
             end
 

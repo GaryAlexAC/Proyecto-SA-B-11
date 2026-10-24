@@ -20,7 +20,10 @@ El API Gateway no coordina la Saga ni publica eventos de dominio. Customer Servi
 | Mensajería | RabbitMQ. |
 | Persistencia | PostgreSQL y Prisma. |
 | Contenedores | Dockerfiles por servicio y `docker-compose.yml` para PostgreSQL y RabbitMQ. |
-| Orquestación | Manifiestos de Kubernetes para servicios y RabbitMQ. |
+| Orquestación | Kubernetes en GKE, Helm 3, Services, Deployments y HPA. |
+| Infraestructura | Terraform para GCP: VPC, firewall, GKE, Artifact Registry y VM de PostgreSQL. |
+| CI/CD | GitHub Actions con Build, Test, Validate, publicación de imágenes y despliegue Helm. |
+| Observabilidad | OpenTelemetry, Prometheus, Grafana, Loki, Tempo, Alertmanager y RabbitMQ Exporter. |
 | Repositorio | npm workspaces, Turborepo y Git. |
 
 ## Trade-offs tecnológicos
@@ -62,6 +65,14 @@ PostgreSQL se utiliza para priorizar transacciones ACID, integridad referencial,
 | Consistencia, integridad y relaciones para operaciones financieras. | El escalado horizontal es más complejo. |
 | Soporte de SQL, constraints y consultas complejas. | El esquema es más rígido que una base documental. |
 
-## Alcance no implementado
+## Alcance operativo y límites
 
-No se incluyen Prometheus, Grafana, logs JSON estructurados, ConfigMap, Secret, NGINX Ingress, DLQ ni reintentos de consumo porque no están implementados.
+La observabilidad se implementa con OpenTelemetry, métricas Prometheus, dashboards
+Grafana, trazas en Tempo, logs estructurados enviados a Loki y alertas en
+Alertmanager. Las configuraciones se despliegan mediante Helm y manifiestos de
+Kubernetes.
+
+El sistema utiliza un outbox transaccional con reintentos de publicación. Cuando
+un evento agota sus intentos se marca con `failedAt`; esta condición se documenta
+como DLQ lógica del outbox. No se afirma la existencia de una cola RabbitMQ DLQ
+física.

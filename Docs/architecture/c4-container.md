@@ -16,7 +16,7 @@ en Artifact Registry y se ejecutan como Pods en Google Kubernetes Engine
 | Notification Service | NestJS, Prisma y Nodemailer | Auditoría, severidad y notificaciones | Pod de GKE con salida hacia SMTP Gmail |
 | RabbitMQ | RabbitMQ Management | Mensajería RPC y eventos entre servicios | Pod de GKE, acceso interno por AMQP |
 | PostgreSQL | PostgreSQL sobre Ubuntu Server | Persistencia de cinco bases lógicas aisladas | VM `bank-usac-db` (`10.10.16.2`) en la subred de datos de la VPC |
-| Stack de Observabilidad | Grafana, Prometheus, Loki, Alertmanager, OTel | Métricas, logs estructurados, alertas y trazas W3C | Pods de GKE en namespace `dev` (`136.64.164.78:3000`) |
+| Stack de Observabilidad | Grafana, Prometheus, Loki, Tempo, Alertmanager, OTel Collector y RabbitMQ Exporter | Métricas, logs estructurados, alertas, trazas W3C y métricas del broker | Pods de GKE en namespace `dev` (`136.64.164.78:3000`) |
 
 El Frontend es el punto de entrada para los usuarios. Nginx entrega la SPA y
 envía las solicitudes `/api/*` al API Gateway dentro del clúster. El Gateway se
@@ -32,4 +32,25 @@ Artifact Registry y GitHub Actions forman parte del flujo de entrega continua (C
 GitHub Actions compila, prueba y empaqueta las imágenes Docker, las publica en
 Artifact Registry y ordena a GKE realizar upgrades declarativos mediante Helm 3.
 
-![Diagrama de contenedores](../img/ContainerDiagram.png)
+```mermaid
+flowchart TB
+    user[Usuarios] --> lb[Google Cloud Load Balancer]
+    lb --> frontend[Frontend React + Nginx]
+    frontend --> gateway[API Gateway]
+    gateway --> rabbit[RabbitMQ]
+    rabbit --> customer[Customer Service]
+    rabbit --> account[Account Service]
+    rabbit --> transaction[Transaction Service]
+    rabbit --> payment[Payment Service]
+    rabbit --> notification[Notification Service]
+    customer --> db[(PostgreSQL en VM)]
+    account --> db
+    transaction --> db
+    payment --> db
+    notification --> db
+    observability[Grafana + Prometheus + Loki + Tempo + Alertmanager + OTel] -.-> customer
+    observability -.-> account
+    observability -.-> transaction
+    observability -.-> payment
+    observability -.-> notification
+```

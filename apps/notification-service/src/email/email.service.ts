@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
+import { createNotificationMetrics } from '@bank-usac/observability';
 
 @Injectable()
 export class EmailService {
@@ -7,6 +8,7 @@ export class EmailService {
   private readonly transporter: nodemailer.Transporter;
   private readonly fromEmail: string;
   private readonly isConfigured: boolean;
+  private readonly metrics = createNotificationMetrics('notification-service');
 
   constructor() {
     this.fromEmail = process.env.EMAIL_USER || '';
@@ -30,7 +32,15 @@ export class EmailService {
     }
   }
 
-  async sendEmail(to: string, subject: string, html: string): Promise<void> {
+  async sendEmail(
+    to: string,
+    subject: string,
+    html: string,
+    notificationType = 'generic',
+  ): Promise<void> {
+    const startedAt = Date.now();
+    let status: 'success' | 'error' = 'success';
+
     if (!this.isConfigured) {
       // Fallback a simulación si no hay credenciales configuradas
       this.logger.log(`\n======================================================`);
@@ -39,6 +49,7 @@ export class EmailService {
       this.logger.log(`Asunto: ${subject}`);
       this.logger.log(`Contenido: ${html}`);
       this.logger.log(`======================================================\n`);
+      this.recordMetrics(notificationType, status, startedAt);
       return;
     }
 
@@ -51,10 +62,23 @@ export class EmailService {
       });
       this.logger.log(`✅ Correo enviado a ${to} | MessageId: ${info.messageId}`);
     } catch (error) {
+      status = 'error';
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`❌ Error al enviar correo a ${to}: ${message}`);
       // No relanzamos el error para no afectar el flujo principal del microservicio
     }
+
+    this.recordMetrics(notificationType, status, startedAt);
+  }
+
+  private recordMetrics(
+    notificationType: string,
+    status: 'success' | 'error',
+    startedAt: number,
+  ) {
+    const attributes = { notification_type: notificationType, status };
+    this.metrics.total.add(1, attributes);
+    this.metrics.duration.record(Date.now() - startedAt, attributes);
   }
 
   async sendActivationEmail(to: string, activationLink: string): Promise<void> {
@@ -77,7 +101,7 @@ export class EmailService {
         <p style="color: #999; font-size: 11px;">Bank USAC — Sistema Bancario Seguro</p>
       </div>
     `;
-    await this.sendEmail(to, 'Activa tu cuenta en Bank USAC', html);
+    await this.sendEmail(to, 'Activa tu cuenta en Bank USAC', html, 'activation');
   }
 
   async sendTransferNotification(
@@ -104,6 +128,6 @@ export class EmailService {
     const subject = isCompleted
       ? `✅ Transferencia de Q${amount.toFixed(2)} completada`
       : `❌ Transferencia de Q${amount.toFixed(2)} fallida`;
-    await this.sendEmail(to, subject, html);
+    await this.sendEmail(to, subject, html, 'transfer');
   }
 }

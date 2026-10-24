@@ -8,7 +8,10 @@ import {
 import { ClientProxy } from '@nestjs/microservices';
 import { Prisma } from '@prisma/client-account';
 import { firstValueFrom } from 'rxjs';
-import { injectTraceContext } from '@bank-usac/observability';
+import {
+  createEventDeliveryMetrics,
+  injectTraceContext,
+} from '@bank-usac/observability';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 export type AccountEventType =
@@ -27,6 +30,7 @@ interface EventOptions {
 export class MessagingService implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly logger = new Logger(MessagingService.name);
   private readonly retryDelays = [5_000, 15_000, 30_000];
+  private readonly eventMetrics = createEventDeliveryMetrics('account-service');
   private timer?: NodeJS.Timeout;
   private flushing = false;
 
@@ -118,6 +122,7 @@ export class MessagingService implements OnApplicationBootstrap, OnModuleDestroy
             where: { id: event.id },
             data: { publishedAt: new Date(), lastError: null },
           });
+          this.eventMetrics.published.add(1, { operation: event.eventType });
         } catch (error) {
           const attempts = event.attempts + 1;
           const exhausted = attempts > this.retryDelays.length;
@@ -133,6 +138,9 @@ export class MessagingService implements OnApplicationBootstrap, OnModuleDestroy
                 : new Date(Date.now() + this.retryDelays[attempts - 1]),
             },
           });
+          if (exhausted) {
+            this.eventMetrics.dlq.add(1, { operation: event.eventType });
+          }
           this.logger.warn(
             `No se pudo publicar ${event.eventType}: intento ${attempts}`,
           );

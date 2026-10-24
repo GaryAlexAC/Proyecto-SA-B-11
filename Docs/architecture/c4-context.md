@@ -23,4 +23,20 @@ El límite de Bank USAC se encuentra dentro de una frontera de nube
 **Google Cloud Platform**, indicando que el acceso público entra por Google Cloud Load
 Balancer. No deben mostrarse componentes internos en este nivel.
 
-![Diagrama de contexto de Bank USAC](../img/Context.png)
+```mermaid
+flowchart LR
+    client[Cliente]
+    cashier[Cajero / Receptor]
+    admin[Administrador]
+    bank[Bank USAC\nSistema bancario web]
+    smtp[Servidor SMTP\nGmail]
+    partner[Banco socio\nBANK06]
+    actions[GitHub Actions]
+
+    client -->|HTTP| bank
+    cashier -->|HTTP| bank
+    admin -->|HTTP| bank
+    bank -->|Activación y notificaciones| smtp
+    bank -->|Transferencias interbancarias W3C| partner
+    actions -->|CI/CD hacia GKE| bank
+```

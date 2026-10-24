@@ -15,7 +15,7 @@ No existe un contrato único validado por todos los servicios. El sobre más com
 }
 ```
 
-Account y Transaction usan `eventId`, `eventType`, `correlationId`, `producer` y `payload`. Los identificadores de las etapas de la Saga son deterministas para que una republicacion conserve el mismo `eventId`.
+Account y Transaction usan `eventId`, `eventType`, `correlationId`, `producer` y `payload`. Los identificadores de las etapas de la Saga son deterministas para que una republicación conserve el mismo `eventId`. Cuando el evento cruza un límite de mensajería, `traceparent` permite continuar la traza W3C.
 
 ## Contratos de la Saga de transacciones
 
@@ -102,10 +102,10 @@ Estos dos eventos no incluyen actualmente `eventType`, `eventVersion`, `occurred
 
 | Componente                   | Comportamiento verificable                                                                                                                               |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Customer Service             | Usa outbox transaccional y reintenta la publicación a los 5, 15 y 30 segundos. Si agota los intentos, guarda `failedAt`; no enruta el mensaje a una DLQ. |
+| Customer Service             | Usa outbox transaccional y reintenta la publicación a los 5, 15 y 30 segundos. Si agota los intentos, guarda `failedAt` como DLQ lógica; no enruta el mensaje a una cola RabbitMQ DLQ física. |
 | Account Service              | Registra eventos procesados y una reserva unica por `correlationId`; confirmar o liberar una reserva son transiciones excluyentes.                         |
 | Transaction Service          | Registra eventos procesados y valida las transiciones de estado para no modificar transacciones terminales.                                               |
 | Notification & Audit Service | Evita duplicar el registro de auditoría mediante `eventId`, pero no evita reenviar la notificación simulada.                                             |
 | Payment Service              | Registra eventos procesados para evitar actualizar más de una vez el estado ante `PaymentTransactionCompleted` y `PaymentTransactionFailed`.             |
 
-No hay configuración de Dead Letter Queue, reintentos de consumo, `ack`/`nack` manual ni validación uniforme del sobre de eventos.
+No hay configuración de Dead Letter Queue física, reintentos de consumo, `ack`/`nack` manual ni validación uniforme del sobre de eventos. El reintento documentado corresponde al outbox de publicación.

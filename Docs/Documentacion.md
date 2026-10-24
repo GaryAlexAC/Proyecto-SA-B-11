@@ -28,9 +28,24 @@ La documentación se divide por tema. Los documentos de eventos, Saga, SRE, deci
 
 ## SRE
 
+- [Guía SRE](sre/README.md)
 - [Service Level Indicators](sre/sli.md)
 - [Service Level Objectives](sre/slo.md)
 - [Service Level Agreement](sre/sla.md)
+
+## Observabilidad
+
+- [Guía de observabilidad](observability/README.md)
+- [Catálogo de métricas](observability/metrics-catalog.md)
+- [SLO y error budget en Prometheus](observability/slo.md)
+
+## DevOps e Infraestructura
+
+- [CI/CD y estrategia de ramas](ci-cd.md)
+- [Infraestructura como código](infrastructure.md)
+- [Autoescalado HPA](hpa.md)
+- [Base de datos en VM](database.md)
+- [Validación y operación](validation.md)
 
 ## Decisiones
 

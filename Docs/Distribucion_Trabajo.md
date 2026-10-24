@@ -3,7 +3,7 @@
 Este documento detalla la distribución de tareas para la **Fase 2 (Evolución a Cloud)**. El objetivo es equilibrar la carga integrando CI/CD, infraestructura en la nube y nuevas reglas de negocio.
 
 ## 1. Gabriel (Infraestructura, DevOps & Notification) - ✅ Completado
-- **Infraestructura Cloud (Terraform):** Creación de Azure Virtual Network, Network Security Group, Azure Container Registry, clúster AKS y aprovisionamiento de una VM para PostgreSQL con script automático.
+- **Infraestructura Cloud (Terraform):** Creación de Google Cloud VPC, reglas de firewall, Artifact Registry, clúster GKE y aprovisionamiento de una VM de Compute Engine para PostgreSQL.
 - **Pipelines CI/CD (GitHub Actions):** Integración continua en `feature/*`, despliegue automatizado a `develop`, versionamiento en `release/*` y rolling update en producción (`main`).
 - **Autoescalado:** Configuración de HPA al 80% de CPU para todos los microservicios en Kubernetes.
 - **Notification Service Extendido:**
@@ -20,7 +20,7 @@ Este documento detalla la distribución de tareas para la **Fase 2 (Evolución a
 1. **Frontend (React + TS):** 
    - Nueva interfaz de administración para ver y cambiar el estado KYC de los clientes.
    - Filtros de estado y fecha en el historial de transacciones.
-   - **Integración de despliegue:** El frontend se empaqueta con Nginx y se ejecuta como contenedor dentro de Kubernetes (GKE / AKS).
+   - **Integración de despliegue:** El frontend se empaqueta con Nginx y se ejecuta como contenedor dentro de GKE.
 2. **Customer Service (NestJS):**
    - Nuevo modelo/campo `kycStatus` (`PENDING | VERIFIED | REJECTED`).
    - Emitir evento `KYCStatusUpdated` (gravedad INFO/WARNING dependiendo si fue exitoso o rechazado).

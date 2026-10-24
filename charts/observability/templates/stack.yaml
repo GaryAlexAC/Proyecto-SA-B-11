@@ -131,6 +131,36 @@ data:
             annotations:
               summary: "El consumo del error budget supera el burn rate permitido"
               runbook: "docs/runbooks/error-budget-burn-rate.md"
+          - alert: BankEventProcessingSLO
+            expr: sum(rate(bank_event_processing_duration_ms_bucket{le="5000"}[5m])) / clamp_min(sum(rate(bank_event_processing_duration_ms_count[5m])), 1) < 0.99
+            for: 10m
+            labels: {severity: warning}
+            annotations:
+              summary: "Menos del 99% de los eventos se procesa antes de 5 segundos"
+          - alert: BankDlqRateHigh
+            expr: sum(rate(bank_events_dlq_total[5m])) / clamp_min(sum(rate(bank_events_published_total[5m])), 1) > 0.005
+            for: 10m
+            labels: {severity: critical}
+            annotations:
+              summary: "La tasa de eventos enviados a la DLQ lógica supera 0.5%"
+          - alert: BankNotificationProcessingSLO
+            expr: sum(rate(bank_notification_processing_duration_ms_bucket{le="30000"}[5m])) / clamp_min(sum(rate(bank_notification_processing_duration_ms_count[5m])), 1) < 0.95
+            for: 10m
+            labels: {severity: warning}
+            annotations:
+              summary: "Menos del 95% de las notificaciones se procesa antes de 30 segundos"
+          - alert: BankReadLatencySLO
+            expr: histogram_quantile(0.95, sum by (le) (rate(bank_operation_duration_ms_bucket{service_name="api-gateway",operation=~"GET .*"}[5m]))) > 500
+            for: 10m
+            labels: {severity: warning}
+            annotations:
+              summary: "La latencia p95 de requests de lectura supera 500 ms"
+          - alert: BankOperationCreationLatencySLO
+            expr: histogram_quantile(0.95, sum by (le) (rate(bank_operation_duration_ms_bucket{service_name="api-gateway",operation=~"POST .*|PUT .*|PATCH .*"}[5m]))) > 1000
+            for: 10m
+            labels: {severity: warning}
+            annotations:
+              summary: "La latencia p95 de creación de operaciones supera 1 segundo"
 ---
 apiVersion: v1
 kind: ConfigMap

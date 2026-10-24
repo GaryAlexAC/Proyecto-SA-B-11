@@ -1,5 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { getTraceContext } from '@bank-usac/observability';
+import {
+  createNotificationMetrics,
+  getTraceContext,
+} from '@bank-usac/observability';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 // Mapa de clasificación: evento → severidad (Proyecto 2 - RF-NOT-02)
@@ -43,6 +46,7 @@ function resolveSeverity(
 @Injectable()
 export class AuditService {
   private readonly logger = new Logger(AuditService.name);
+  private readonly notificationMetrics = createNotificationMetrics('notification-service');
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -108,8 +112,11 @@ export class AuditService {
   }
 
   async sendEmailNotification(to: string, subject: string, _message: string) {
-    // Este método se mantiene por compatibilidad pero los controllers
-    // ahora usan EmailService directamente para envío real de correos.
+    const startedAt = Date.now();
+    // Este método conserva la notificación simulada de eventos de Payment.
     this.logger.log(`[Auditoría] Notificación registrada para: ${to} | ${subject}`);
+    const attributes = { notification_type: 'payment', status: 'success' };
+    this.notificationMetrics.total.add(1, attributes);
+    this.notificationMetrics.duration.record(Date.now() - startedAt, attributes);
   }
 }

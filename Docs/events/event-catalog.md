@@ -12,6 +12,12 @@
 
 No se agregaron colas nuevas para la Saga coreografiada. Los eventos nuevos usan las colas durables que ya pertenecen a cada microservicio.
 
+Los eventos publicados por el outbox incluyen metadatos de trazabilidad como
+`eventId`, `eventType`, `eventVersion`, `occurredAt`, `correlationId`,
+`causationId`, `producer`, `payload` y, cuando corresponde, `traceparent`.
+Estos campos permiten relacionar métricas, logs y trazas sin incluir
+identificadores de alta cardinalidad en las etiquetas de Prometheus.
+
 ## Saga de transacciones
 
 | Mensaje | Productor | Cola / consumidor | Funcion |

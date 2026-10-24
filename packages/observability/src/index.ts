@@ -144,7 +144,26 @@ export class BrokerTraceInterceptor implements NestInterceptor {
     const parent = extractTraceContext(data);
     const metrics = createServiceMetrics(this.serviceName);
     const startedAt = Date.now();
+    const occurredAt =
+      data && typeof data === 'object' && 'occurredAt' in data
+        ? Date.parse(String((data as { occurredAt?: unknown }).occurredAt ?? ''))
+        : Number.NaN;
     metrics.requests.add(1, { operation: pattern });
+
+    const recordDurations = (status: 'ok' | 'error') => {
+      const finishedAt = Date.now();
+      const processingDuration = Number.isFinite(occurredAt)
+        ? Math.max(0, finishedAt - occurredAt)
+        : finishedAt - startedAt;
+      metrics.latency.record(finishedAt - startedAt, {
+        operation: pattern,
+        status,
+      });
+      metrics.eventProcessing.record(processingDuration, {
+        operation: pattern,
+        status,
+      });
+    };
 
     return new Observable<unknown>((subscriber) => {
       context.with(parent, () => {
@@ -166,19 +185,13 @@ export class BrokerTraceInterceptor implements NestInterceptor {
                 span.recordException(error as Error);
                 span.setStatus({ code: SpanStatusCode.ERROR });
                 metrics.errors.add(1, { operation: pattern });
-                metrics.latency.record(Date.now() - startedAt, {
-                  operation: pattern,
-                  status: 'error',
-                });
+                recordDurations('error');
                 span.end();
                 subscriber.error(error);
               },
               complete: () => {
                 span.setStatus({ code: SpanStatusCode.OK });
-                metrics.latency.record(Date.now() - startedAt, {
-                  operation: pattern,
-                  status: 'ok',
-                });
+                recordDurations('ok');
                 span.end();
                 subscriber.complete();
               },
@@ -210,18 +223,30 @@ export class HttpMetricsInterceptor implements NestInterceptor {
   private readonly metrics = createServiceMetrics('api-gateway');
 
   intercept(executionContext: ExecutionContext, next: { handle(): Observable<unknown> }) {
-    const request = executionContext.switchToHttp().getRequest<{ method?: string; route?: { path?: string } }>();
+    const request = executionContext
+      .switchToHttp()
+      .getRequest<{ method?: string; route?: { path?: string } }>();
+    const response = executionContext
+      .switchToHttp()
+      .getResponse<{ statusCode?: number }>();
     const operation = `${request.method ?? 'HTTP'} ${request.route?.path ?? 'unknown'}`;
     const startedAt = Date.now();
-    this.metrics.requests.add(1, { operation });
     return next.handle().pipe(
       tap(() => {
+        this.metrics.requests.add(1, {
+          operation,
+          status: String(response.statusCode ?? 200),
+        });
         this.metrics.latency.record(Date.now() - startedAt, {
           operation,
           status: 'ok',
         });
       }),
       catchError((error: unknown) => {
+        this.metrics.requests.add(1, {
+          operation,
+          status: String(response.statusCode ?? 500),
+        });
         this.metrics.errors.add(1, { operation });
         this.metrics.latency.record(Date.now() - startedAt, {
           operation,
@@ -275,6 +300,35 @@ export function createServiceMetrics(serviceName: string) {
     }),
     latency: meter.createHistogram('bank_operation_duration_ms', {
       description: 'Duración de operaciones en milisegundos',
+      unit: 'ms',
+    }),
+    eventProcessing: meter.createHistogram('bank_event_processing_duration_ms', {
+      description: 'Tiempo desde occurredAt hasta el procesamiento del evento',
+      unit: 'ms',
+    }),
+  };
+}
+
+export function createEventDeliveryMetrics(serviceName: string) {
+  const meter = getMeter(serviceName);
+  return {
+    published: meter.createCounter('bank_events_published_total', {
+      description: 'Eventos publicados correctamente desde el outbox',
+    }),
+    dlq: meter.createCounter('bank_events_dlq_total', {
+      description: 'Eventos agotados después de todos los reintentos del outbox',
+    }),
+  };
+}
+
+export function createNotificationMetrics(serviceName: string) {
+  const meter = getMeter(serviceName);
+  return {
+    total: meter.createCounter('bank_notifications_total', {
+      description: 'Notificaciones procesadas por el servicio',
+    }),
+    duration: meter.createHistogram('bank_notification_processing_duration_ms', {
+      description: 'Duración del procesamiento de una notificación',
       unit: 'ms',
     }),
   };
