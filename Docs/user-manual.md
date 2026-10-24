@@ -14,7 +14,7 @@ Existen **3 roles** en el sistema:
 ## Acceso al Sistema
 
 ### Iniciar Sesión
-1. Ingresa desde tu navegador a la IP o dominio público asignado al frontend por Azure Load Balancer. El equipo de operación puede consultarlo con `kubectl get svc frontend -n dev`.
+1. Ingresa desde tu navegador a la IP o dominio público asignado al frontend por Google Cloud Load Balancer (`http://34.29.251.106`). El equipo de operación puede consultarlo con `kubectl get svc frontend -n dev`.
 2. En la pantalla de **Login**, ingresa tu **usuario** y **contraseña**.
 3. Haz clic en **Iniciar sesión**.
 

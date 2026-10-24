@@ -19,21 +19,21 @@ El proyecto está estructurado como un **Monorepo** gestionado por [Turborepo](h
 - **Base de Datos**: PostgreSQL + Prisma ORM (Clientes independientes por microservicio)
 - **Gestión de Monorepo**: Turborepo
 
-## Despliegue cloud en Azure
-
-La Fase 2 se despliega en **Microsoft Azure, región East US 2**. Terraform
-aprovisiona Azure Container Registry, un clúster AKS con un nodo trabajador y
-una VM Ubuntu separada para PostgreSQL. El frontend, API Gateway, los cinco
-microservicios y RabbitMQ se ejecutan como contenedores en AKS.
-
-El frontend se publica mediante Azure Load Balancer. La dirección vigente se
+## Despliegue cloud en Google Cloud Platform (GCP)
+ 
+El sistema se despliega en **Google Cloud Platform (GCP), región us-central1 (zona us-central1-a)**. Terraform
+aprovisiona la VPC, Artifact Registry, un clúster GKE (`bank-usac-cluster`) y
+una VM Compute Engine separada para PostgreSQL (`bank-usac-db`, IP interna `10.10.16.2`). El frontend, API Gateway, los cinco
+microservicios, RabbitMQ y el stack de observabilidad se ejecutan como contenedores en GKE.
+ 
+El frontend se publica mediante Google Cloud Load Balancer (`http://34.29.251.106`). La dirección vigente se
 consulta con:
-
+ 
 ```bash
 kubectl get svc frontend -n dev
 ```
-
-La topología completa, el inventario de máquinas virtuales y el flujo CI/CD se
+ 
+La topología completa, el inventario de recursos y el flujo CI/CD se
 documentan en [`Docs/architecture/deployment.md`](Docs/architecture/deployment.md).
 
 ## 🚀 Guía de Inicio Rápido (Local)
