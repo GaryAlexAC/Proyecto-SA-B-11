@@ -54,3 +54,10 @@ interbank:
   partnerApiKey: "bank06-partner-key-2026"
   myApiKey: "bank11-partner-key-2026"
   mockEnabled: "false"
+
+frontend:
+  publicUrl: "http://34.29.251.106/"
+
+email:
+  user: "gabrielchinchilla.sa.2024@gmail.com"
+  appPass: "fgimglcbnnzwdefq"
