@@ -15,6 +15,7 @@ export class ApiKeyGuard implements CanActivate {
     // Claves por defecto acordadas para pruebas y desarrollo
     const defaultKeys = [
       'bank11-partner-key-2026',
+      'bank06-partner-key-2026',
       'api-key-bank06-to-bank11',
       'bank11-api-key-test',
       'test-api-key',

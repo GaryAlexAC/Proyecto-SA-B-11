@@ -23,17 +23,17 @@
 | Rol | Endpoint / URL Base | Descripción |
 | :--- | :--- | :--- |
 | **Bank USAC (`BANK11`)** | `http://34.29.251.106/interbank/v1` | Expuesto a través de Google Cloud Load Balancer / Nginx |
-| **Banco Pareja (`BANK06`)** | *Por confirmar por Grupo 6* (Ej: `http://<IP_GRUPO_06>/interbank/v1`) | Endpoint receptor y callback del Grupo 6 |
+| **Banco Pareja (`BANK06`)** | `http://100.52.78.200:30080/interbank/v1` | Endpoint receptor y callback del Grupo 6 (Verificado: `GET /health` responde `{"status":"UP","bankCode":"BANK06"}`) |
 
 ---
 
 ## 3. Mecanismo de Autenticación y Seguridad
 
 - **Header de Autenticación:** `X-Api-Key` obligatorio en todas las solicitudes (excepto `GET /health`).
-- **Clave entregada al Grupo 6 para invocar a `BANK11`:**  
+- **Clave acordada para `BANK11` (nosotros):**  
   `bank11-partner-key-2026`
 - **Clave entregada por el Grupo 6 para que `BANK11` los invoque:**  
-  `api-key-bank06-to-bank11` *(Configurable en el Secret `PARTNER_API_KEY`)*.
+  `bank06-partner-key-2026`
 - **Trazabilidad W3C:** Ambas entidades propagan el header `traceparent` para correlación distribuida de OpenTelemetry entre bancos.
 
 ---
@@ -45,16 +45,16 @@ Estas cuentas están activas y verificadas (KYC) para recibir depósitos desde `
 
 | No. Cuenta | Titular | Tipo | Saldo Inicial |
 | :--- | :--- | :--- | :--- |
-| `CUENTA-BANK11-001` | Cliente Pruebas A | Monetaria | Q 5,000.00 |
-| `CUENTA-BANK11-002` | Cliente Pruebas B | Ahorro | Q 3,000.00 |
+| `acc-bank11-client1` | Cliente Pruebas A | Monetaria | Q 5,000.00 |
+| `acc-bank11-client2` | Cliente Pruebas B | Ahorro | Q 3,000.00 |
 
 ### Cuentas en Banco Pareja (`BANK06`)
-*Cuentas acordadas con el Grupo 6 para enviarles dinero desde Bank USAC:*
+*Cuentas oficiales entregadas por el Grupo 6 para enviarles depósitos desde Bank USAC:*
 
-| No. Cuenta | Titular | Tipo | Estado |
+| No. Cuenta | Banco | Tipo | Estado |
 | :--- | :--- | :--- | :--- |
-| `CUENTA-BANK06-001` | Titular Pruebas G6 | Monetaria | Activa |
-| `CUENTA-BANK06-002` | Titular Pruebas G6-B | Ahorro | Activa |
+| `acc-21cf4149` | BANK06 | Monetaria / Principal | Activa y verificada |
+| `acc-43fcfaa6` | BANK06 | Ahorro / Secundaria | Activa y verificada |
 
 ---
 

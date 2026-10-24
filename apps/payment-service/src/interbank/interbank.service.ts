@@ -27,10 +27,10 @@ export class InterbankService {
   readonly bankCode = process.env.BANK_CODE || 'BANK11';
   readonly partnerBankCode = process.env.PARTNER_BANK_CODE || 'BANK06';
   readonly partnerBankUrl = (
-    process.env.PARTNER_BANK_URL || 'http://localhost:3000'
+    process.env.PARTNER_BANK_URL || 'http://100.52.78.200:30080'
   ).replace(/\/$/, '');
-  readonly partnerApiKey = process.env.PARTNER_API_KEY || 'partner-api-key-test';
-  readonly myApiKey = process.env.INTERBANK_API_KEY || 'bank11-api-key-test';
+  readonly partnerApiKey = process.env.PARTNER_API_KEY || 'bank06-partner-key-2026';
+  readonly myApiKey = process.env.INTERBANK_API_KEY || 'bank11-partner-key-2026';
 
   private mockConfig: InterbankMockConfig = {
     enabled: process.env.INTERBANK_MOCK_ENABLED !== 'false',
@@ -613,7 +613,8 @@ export class InterbankService {
     }
 
     // REAL HTTP DISPATCH TO PARTNER BANK
-    const partnerEndpoint = `${this.partnerBankUrl}/interbank/v1/transfers`;
+    const basePartnerUrl = this.partnerBankUrl.replace(/\/interbank\/v1\/?$/, '').replace(/\/$/, '');
+    const partnerEndpoint = `${basePartnerUrl}/interbank/v1/transfers`;
     try {
       this.logger.log(`Dispatching transfer ${req.interbankTransferId} to ${partnerEndpoint}`);
       const res = await fetch(partnerEndpoint, {

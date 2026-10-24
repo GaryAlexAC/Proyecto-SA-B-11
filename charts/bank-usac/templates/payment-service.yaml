@@ -37,11 +37,17 @@ spec:
         - name: JWT_SECRET
           value: {{ .Values.jwt.secret | quote }}
         - name: BANK_CODE
-          value: "BANK11"
+          value: {{ .Values.interbank.bankCode | default "BANK11" | quote }}
         - name: PARTNER_BANK_CODE
-          value: "BANK06"
+          value: {{ .Values.interbank.partnerBankCode | default "BANK06" | quote }}
+        - name: PARTNER_BANK_URL
+          value: {{ .Values.interbank.partnerBankUrl | default "http://100.52.78.200:30080" | quote }}
+        - name: PARTNER_API_KEY
+          value: {{ .Values.interbank.partnerApiKey | default "bank06-partner-key-2026" | quote }}
+        - name: INTERBANK_API_KEY
+          value: {{ .Values.interbank.myApiKey | default "bank11-partner-key-2026" | quote }}
         - name: INTERBANK_MOCK_ENABLED
-          value: "true"
+          value: {{ .Values.interbank.mockEnabled | default "false" | quote }}
         livenessProbe:
           exec:
             command: ["node", "-e", "process.exit(0)"]

@@ -216,9 +216,30 @@ export function InterbankPage() {
             label="Cuenta destino en el otro banco"
             value={destinationAccount}
             onChange={(e) => setDestinationAccount(e.target.value)}
-            placeholder="Ej: 3001-000123"
+            placeholder="Ej: acc-21cf4149 o acc-43fcfaa6"
             required
           />
+          {destinationBankCode === "BANK06" && (
+            <div style={{ display: "flex", gap: "0.5rem", marginTop: "-0.5rem", marginBottom: "0.5rem", alignItems: "center" }}>
+              <span style={{ fontSize: "0.8rem", color: "var(--color-muted, #888)" }}>Cuentas de prueba BANK06:</span>
+              <button
+                type="button"
+                className="button button--quiet"
+                style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem", height: "auto" }}
+                onClick={() => setDestinationAccount("acc-21cf4149")}
+              >
+                acc-21cf4149
+              </button>
+              <button
+                type="button"
+                className="button button--quiet"
+                style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem", height: "auto" }}
+                onClick={() => setDestinationAccount("acc-43fcfaa6")}
+              >
+                acc-43fcfaa6
+              </button>
+            </div>
+          )}
 
           <Field
             label="Monto en Quetzales (GTQ)"

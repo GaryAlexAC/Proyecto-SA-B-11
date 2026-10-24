@@ -46,3 +46,11 @@ services:
     replicaCount: 1
     type: LoadBalancer
     port: 80
+
+interbank:
+  bankCode: "BANK11"
+  partnerBankCode: "BANK06"
+  partnerBankUrl: "http://100.52.78.200:30080"
+  partnerApiKey: "bank06-partner-key-2026"
+  myApiKey: "bank11-partner-key-2026"
+  mockEnabled: "false"
