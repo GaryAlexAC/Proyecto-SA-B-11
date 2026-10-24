@@ -1,6 +1,6 @@
 import { Injectable, Logger, Inject } from '@nestjs/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { firstValueFrom, timeout } from 'rxjs';
 import { getMeter } from '@bank-usac/observability';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -615,6 +615,10 @@ export class InterbankService {
     // REAL HTTP DISPATCH TO PARTNER BANK
     const basePartnerUrl = this.partnerBankUrl.replace(/\/interbank\/v1\/?$/, '').replace(/\/$/, '');
     const partnerEndpoint = `${basePartnerUrl}/interbank/v1/transfers`;
+    const effectiveTraceparent =
+      traceparent ||
+      `00-${randomBytes(16).toString('hex')}-${randomBytes(8).toString('hex')}-01`;
+
     try {
       this.logger.log(`Dispatching transfer ${req.interbankTransferId} to ${partnerEndpoint}`);
       const res = await fetch(partnerEndpoint, {
@@ -623,7 +627,7 @@ export class InterbankService {
           'Content-Type': 'application/json',
           'X-Api-Key': this.partnerApiKey,
           'Idempotency-Key': req.interbankTransferId,
-          ...(traceparent ? { traceparent } : {}),
+          'traceparent': effectiveTraceparent,
         },
         body: JSON.stringify(req),
       });
